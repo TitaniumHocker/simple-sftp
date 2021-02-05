@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "simple-sftp"
+version = "0.0.1"
+description = "Simple SFTP python client based on ssh2-python package"
+authors = ["Ivan Fedorov <inbox@titaniumhocker.ru>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+ssh2-python = "^0.26.0"
+tox = "^3.21.4"
+
+[tool.poetry.dev-dependencies]
+mypy = "^0.800"
+pytest = "^6.2.2"
+jedi = "^0.18.0"
+flake8 = "^3.8.4"
+isort = "^5.7.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
