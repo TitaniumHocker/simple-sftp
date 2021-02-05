@@ -3,6 +3,7 @@ simple-sftp
 ###########
 
 |license|
+|tests|
 |codecov|
 
 Simple SFTP python client based on ssh2-python package
@@ -13,3 +14,5 @@ Simple SFTP python client based on ssh2-python package
 
 .. |codecov| image:: https://codecov.io/gh/TitaniumHocker/simple-sftp/branch/master/graph/badge.svg?token=WSDE0HW6E6
    :target: https://codecov.io/gh/TitaniumHocker/simple-sftp
+
+.. |tests| image:: https://github.com/TitaniumHocker/simple-sftp/workflows/Tests/badge.svg
