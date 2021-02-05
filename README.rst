@@ -6,7 +6,7 @@ simple-sftp
 |tests|
 |codecov|
 
-Simple SFTP python client based on ssh2-python package
+Simple SFTP python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package
 
 **Work in progress**
 
