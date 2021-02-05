@@ -5,6 +5,7 @@ simple-sftp
 |license|
 |tests|
 |codecov|
+|codacy|
 
 Simple SFTP python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package
 
@@ -16,3 +17,5 @@ Simple SFTP python client based on `ssh2-python <https://github.com/ParallelSSH/
    :target: https://codecov.io/gh/TitaniumHocker/simple-sftp
 
 .. |tests| image:: https://github.com/TitaniumHocker/simple-sftp/workflows/Tests/badge.svg
+
+.. |codacy| image:: https://app.codacy.com/project/badge/Grade/48255d770d7349f3936a0090bd909833
