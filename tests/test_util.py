@@ -31,4 +31,14 @@ def test_make_sock(listener):
     sock = util.make_socket(*listener.getsockname(), force_keepalive=True)
     assert sock.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE) == 1
     assert isinstance(sock, socket.socket)
-    # TODO: Find out how to test socket timeout.
+    # TODO: Find out how to test socket timeout
+
+
+def test_make_ssh_session(sftpserver):
+    with sftpserver.serve_content({}):
+        session = util.make_ssh_session(
+            util.make_socket(sftpserver.host, sftpserver.port),
+            # Some shit like paramiko does not support keepalive
+            use_keepalive=False
+        )
+        assert isinstance(session, Session)

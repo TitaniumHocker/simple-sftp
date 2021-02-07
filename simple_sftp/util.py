@@ -84,7 +84,11 @@ def make_socket(
     return sock
 
 
-def make_ssh_session(sock: socket.socket, retry_count: int = 3) -> Session:
+def make_ssh_session(
+    sock: socket.socket,
+    retry_count: int = 3,
+    use_keepalive: bool = True
+) -> Session:
     """Create ssh session from existing socket
 
     :param sock: Socket to use for SSH session.
@@ -94,7 +98,8 @@ def make_ssh_session(sock: socket.socket, retry_count: int = 3) -> Session:
     :return: SSH Session."""
     ssh: Session = Session()
     ssh.set_blocking(True)
-    ssh.keepalive_config(True, 3)
+    if use_keepalive:
+        ssh.keepalive_config(True, 3)
 
     for i in range(1, 3 + 1):
         try:
