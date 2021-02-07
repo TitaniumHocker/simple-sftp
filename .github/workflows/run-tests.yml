@@ -31,6 +31,7 @@ jobs:
         poetry lock --quiet --no-interaction
         poetry export --quiet --no-interaction --dev --without-hashes --format requirements.txt --output requirements.txt
         python -m pip install --requirement requirements.txt >/dev/null
+        python setup.py install --quiet
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
