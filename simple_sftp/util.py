@@ -8,8 +8,7 @@ from getpass import getuser
 import ssh2
 from ssh2.session import Session
 
-from .excs import (HandShakeFailedError, HostResolveError,
-                   KnownHostsFileNotFoundError, SockTimeoutError)
+from . import auth, excs
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def find_knownhosts() -> str:
     dummy_path = os.path.join('/home', getuser(), '.ssh', 'known_hosts')
     if os.path.exists(dummy_path):
         return dummy_path
-    raise KnownHostsFileNotFoundError("Failed to find known_hosts file.")
+    raise excs.KnownHostsFileNotFoundError("Failed to find known_hosts file.")
 
 
 def make_socket(
@@ -72,11 +71,11 @@ def make_socket(
     try:
         sock.connect((host, port))
     except socket.gaierror as exc:
-        raise HostResolveError(
+        raise excs.HostResolveError(
             f"Failed to resolve host {host} into IP adress."
         )from exc
     except socket.timeout as exc:
-        raise SockTimeoutError(
+        raise excs.SockTimeoutError(
             f"Connection timeout reached while trying "
             f"to establish connection to {host}:{port}"
         ) from exc
@@ -108,12 +107,54 @@ def make_ssh_session(
         except ssh2.exceptions.KeyExchangeError as exc:
             if i < retry_count:
                 continue
-            raise HandShakeFailedError("SSH handshake failed") from exc
+            raise excs.HandShakeFailedError("SSH handshake failed") from exc
         except (ssh2.exceptions.SocketDisconnectError,
                 ssh2.exceptions.SocketRecvError,
                 ssh2.exceptions.SocketSendError) as exc:
-            raise HandShakeFailedError(
+            raise excs.HandShakeFailedError(
                 "Connection seems to be closed by remote host"
             ) from exc
 
     return ssh
+
+
+def pick_auth_method(
+    username: t.Optional[str] = None,
+    password: t.Optional[str] = None,
+    agent_username: t.Optional[str] = None,
+    pkey_path: t.Optional[str] = None,
+    passphrase: str = ''
+) -> t.Union[
+    auth.AgentAuthorization,
+    auth.PasswordAuthorization,
+    auth.KeyAuthorization
+]:
+    """Picks authorization method from provided credentials
+
+    :param username: Username for username/password authorization.
+    :param password: Password for username/password authorization.
+    :param agent_username: Username for agent authorization.
+    :param pkey_path: Path to private key for key authorization.
+    :param passphrase: Passphrase for key authorization.
+    :raise TypeError: If credentials for multiple authorization
+        types was provided or not enough credentials was provided
+        to pick at least one authorization handler.
+    :return: Initialized authorization handler."""
+    if username is None and password is None and \
+            agent_username is None and pkey_path is None:
+        raise TypeError("Not enough credentials was provided.")
+    if len([i for i in [
+        username and password, agent_username, pkey_path
+    ] if i is not None]) > 1:
+        raise TypeError("Too many credentials was provided.")
+
+    if username is not None and password is not None:
+        return auth.PasswordAuthorization(username, password)
+
+    if agent_username is not None:
+        return auth.AgentAuthorization(agent_username)
+
+    if pkey_path is not None:
+        return auth.KeyAuthorization(pkey_path, passphrase)
+
+    raise TypeError("Failed to pick authorization type.")

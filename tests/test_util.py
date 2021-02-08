@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import pytest
 from ssh2.session import Session
 
-from simple_sftp import excs, util
+from simple_sftp import auth, excs, util
 
 
 @pytest.fixture(scope='function')
@@ -55,3 +55,31 @@ def test_make_ssh_session(sftpserver):
             util.make_ssh_session(
                 util.make_socket(sftpserver.host, sftpserver.port)
             )
+
+
+def test_pick_auth_method():
+    with pytest.raises(TypeError):
+        util.pick_auth_method()
+
+    with pytest.raises(TypeError):
+        util.pick_auth_method(
+            username='aaa',
+            password='aaa',
+            agent_username='aaa'
+        )
+
+    with pytest.raises(TypeError):
+        util.pick_auth_method(username='aaa', passphrase='aaa')
+
+    assert isinstance(
+        util.pick_auth_method(username='aaa', password='aaa'),
+        auth.PasswordAuthorization
+    )
+    assert isinstance(
+        util.pick_auth_method(agent_username='aaa'),
+        auth.AgentAuthorization
+    )
+    assert isinstance(
+        util.pick_auth_method(pkey_path='awdad'),
+        auth.KeyAuthorization
+    )
