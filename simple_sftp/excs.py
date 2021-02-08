@@ -36,7 +36,3 @@ class KeyAuthorizationError(AuthorizationError):
 
 class PasswordAuthorizationError(AuthorizationError):
     """Authorization with password failed"""
-
-
-class KeyboardAuthorizationError(AuthorizationError):
-    """Authorization with keyboard failed"""
