@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 def find_knownhosts() -> str:
     """Get known_hosts file full path
 
+    Searches for known hosts file in `~/.ssh` directory.
+
     :return: Full path to known_hosts file.
     :raise KnownHostsNotFoundError: If
         failed to find full path to known_hosts file."""
