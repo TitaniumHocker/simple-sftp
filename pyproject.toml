@@ -19,6 +19,7 @@ isort = "^5.7.0"
 pytest-cov = "^2.11.1"
 pytest-sftpserver = "^1.3.0"
 coverage = {extras = ["toml"], version = "^5.4"}
+rstcheck = "^3.3.1"
 
 [build-system]
 requires = ["poetry>=0.12"]
@@ -35,7 +36,7 @@ source = [
 ]
 
 [tool.coverage.report]
-fail_under = 50
+fail_under = 70
 show_missing = true
 
 [tool.tox]
