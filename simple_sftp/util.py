@@ -62,13 +62,17 @@ def make_socket(
     :raise HostResolveError: If host resolving was unsuccessfull.
     :raise SockTimeoutError: If connection timeout has been reached.
     :return: New configured socket."""
+    logger.debug("Creating new socket with timeout %f.", connection_timeout)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(connection_timeout)
 
     if force_keepalive:
+        logger.info("Forcing socket keepalive configuration.")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         for key, value in keepalive_options.items():
             sock.setsockopt(socket.IPPROTO_TCP, key, value)
+
+    logger.debug("Trying to connect socket to %s:%i...", host, port)
 
     try:
         sock.connect((host, port))
@@ -81,6 +85,8 @@ def make_socket(
             f"Connection timeout reached while trying "
             f"to establish connection to {host}:{port}"
         ) from exc
+    
+    logger.debug("Socket successfully connected.")
 
     return sock
 
@@ -95,20 +101,25 @@ def make_ssh_session(
     :param sock: Socket to use for SSH session.
     :param retry_count: Count of max handshake
         retries. By default is set to 3.
-    :param HandShakeFailedError: If ssh handshake fails.
+    :param HandShakeFailedError: If SSH handshake fails.
     :return: SSH Session."""
+    logger.debug("Creating new SSH session from provided socket.")
     ssh: Session = Session()
     ssh.set_blocking(True)
     if use_keepalive:
+        logger.info("Settingup SSH session keepalive configuration.")
         ssh.keepalive_config(True, 3)
 
-    for i in range(1, 3 + 1):
+    logger.debug("Making SSH handshake...")
+    for i in range(1, retry_count + 2):
         try:
             ssh.handshake(sock)
             break
         except ssh2.exceptions.KeyExchangeError as exc:
-            if i < retry_count:
+            if i <= retry_count:
+                logger.warning("%i attempt failed, will try again.", i)
                 continue
+            logger.warning("%i attempt failed, will raise an exception.", i)
             raise excs.HandShakeFailedError("SSH handshake failed") from exc
         except (ssh2.exceptions.SocketDisconnectError,
                 ssh2.exceptions.SocketRecvError,
@@ -116,7 +127,8 @@ def make_ssh_session(
             raise excs.HandShakeFailedError(
                 "Connection seems to be closed by remote host"
             ) from exc
-
+    
+    logger.debug("SSH handshake successfully made.")
     return ssh
 
 
@@ -142,21 +154,27 @@ def pick_auth_method(
         types was provided or not enough credentials was provided
         to pick at least one authorization handler.
     :return: Initialized authorization handler."""
+    logger.debug("Trying to pick authorization method from provided credentials")
+
     if username is None and password is None and \
             agent_username is None and pkey_path is None:
         raise TypeError("Not enough credentials was provided.")
+
     if len([i for i in [
         username and password, agent_username, pkey_path
     ] if i is not None]) > 1:
         raise TypeError("Too many credentials was provided.")
 
     if username is not None and password is not None:
+        logger.debug("Password authorization method picked.")
         return auth.PasswordAuthorization(username, password)
 
     if agent_username is not None:
+        logger.debug("Agent authorization method picked.")
         return auth.AgentAuthorization(agent_username)
 
     if pkey_path is not None:
+        logger.debug("Key authorization method picked.")
         return auth.KeyAuthorization(pkey_path, passphrase)
 
     raise TypeError("Failed to pick authorization type.")
