@@ -30,7 +30,13 @@ testpaths = [
 ]
 
 [tool.coverage.run]
-source = ["simple_sftp"]
+source = [
+    "simple_sftp"
+]
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
 
 [tool.tox]
 legacy_tox_ini = """
