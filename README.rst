@@ -8,7 +8,8 @@ simple-sftp
 |codacy|
 |codeclimate|
 
-Simple SFTP python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package
+Simple well-typed SFTP(*SSH File Transfer Protocol*) python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package,
+which actually is bindings to *libssh2* C library.
 
 **Work in progress**
 
