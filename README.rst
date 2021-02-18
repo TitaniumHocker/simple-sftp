@@ -24,9 +24,12 @@ Quickstart
 
 This simple example will print list of files and directories:
 
-.. include:: ./examples/quickstart.py
-   :code: python
+.. code:: python
+    from simple_sftp import SFTPClient
 
+
+    with SFTPClient("ssh.example.com", username="root", password="Secret") as sftp:
+        print("\n".join(name for name, attr in sftp.ls()))
 
 Installation
 ============
