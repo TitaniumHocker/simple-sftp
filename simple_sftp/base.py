@@ -11,13 +11,14 @@ from ssh2.session import LIBSSH2_HOSTKEY_HASH_SHA1, LIBSSH2_HOSTKEY_TYPE_RSA, Se
 from ssh2.sftp import SFTP
 
 from .auth import AuthHandlersType
-from .util import find_knownhosts, make_socket, make_ssh_session, pick_auth_method
+from .util import find_knownhosts, make_socket, make_ssh_session, parse_attrs, pick_auth_method
 
 logger = logging.getLogger(__name__)
 
 
 class SFTPClient:
-    """Simple SFTP client
+    """
+    Simple SFTP client
 
     :param host: Host name to connect.
     :param port: Port to connect.
@@ -30,7 +31,8 @@ class SFTPClient:
         be made to find the file in common places.
     :param validate_host: If set to `True` host validation will be made.
     :param force_keepalive: If set to `True` keepalive options for socket and SSH
-        session will be forced."""
+        session will be forced.
+    """
     def __init__(
         self,
         host: str,
@@ -55,9 +57,11 @@ class SFTPClient:
         self._session: SFTP
 
     def _start_sftp_session(self) -> SFTP:
-        """Start new SFTP session
+        """
+        Start new SFTP session
 
-        :return: SFTP session."""
+        :return: SFTP session.
+        """
         ssh_session = make_ssh_session(
             make_socket(self.host, self.port, force_keepalive=self.force_keepalive),
             use_keepalive=self.force_keepalive
@@ -86,8 +90,16 @@ class SFTPClient:
             LIBSSH2_HOSTKEY_HASH_SHA1
         ).decode('utf-8')
 
-    def ls(self, path: str = '.'):
-        pass
+    def ls(self, path: str = '.') -> t.List[t.Tuple[str, t.Any]]:
+        """Get list of files and directories
+
+        :param path: Path to be listed.
+        :return: List of tuples with file/dir names and attributes."""
+        with self.session.opendir(path) as dh:
+            return [
+                (name.decode('utf-8'), parse_attrs(attrs))
+                for _, name, attrs in dh.readdir()
+            ]
 
     def mv(self, from_path: str, to_path: str):
         pass

@@ -3,14 +3,114 @@ import logging
 import os
 import socket
 import typing as t
+from datetime import datetime
 from getpass import getuser
+from itertools import chain
 
 import ssh2
 from ssh2.session import Session
+from ssh2.sftp import LIBSSH2_SFTP_S_IFBLK  # ftype: Block special (block device)
+from ssh2.sftp import LIBSSH2_SFTP_S_IFCHR  # ftype: Character special (character device)
+from ssh2.sftp import LIBSSH2_SFTP_S_IFDIR  # ftype: Directory
+from ssh2.sftp import LIBSSH2_SFTP_S_IFIFO  # ftype: Named pipe (fifo)
+from ssh2.sftp import LIBSSH2_SFTP_S_IFLNK  # ftype: Symbolic link
+from ssh2.sftp import LIBSSH2_SFTP_S_IFREG  # ftype: Regular file
+from ssh2.sftp import LIBSSH2_SFTP_S_IFSOCK  # ftype: Socket
+from ssh2.sftp import LIBSSH2_SFTP_S_IRGRP  # group: Read
+from ssh2.sftp import LIBSSH2_SFTP_S_IROTH  # other: Read
+from ssh2.sftp import LIBSSH2_SFTP_S_IRUSR  # owner: Read
+from ssh2.sftp import LIBSSH2_SFTP_S_IWOTH  # other: Write
+from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR  # owner/group: Write
+from ssh2.sftp import LIBSSH2_SFTP_S_IXOTH  # other: Execute
+from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR  # owner/group: Execute
+from ssh2.sftp_handle import SFTPAttributes
 
 from . import auth, excs
 
 logger = logging.getLogger(__name__)
+
+
+FILETYPE_MASKS: t.List[int] = [
+    LIBSSH2_SFTP_S_IFBLK,
+    LIBSSH2_SFTP_S_IFCHR,
+    LIBSSH2_SFTP_S_IFDIR,
+    LIBSSH2_SFTP_S_IFIFO,
+    LIBSSH2_SFTP_S_IFLNK,
+    LIBSSH2_SFTP_S_IFREG,
+    LIBSSH2_SFTP_S_IFSOCK
+]
+
+PERMISSIONS_MASKS: t.List[int] = [
+    LIBSSH2_SFTP_S_IRUSR,
+    LIBSSH2_SFTP_S_IWUSR,
+    LIBSSH2_SFTP_S_IXUSR,
+    LIBSSH2_SFTP_S_IRGRP,
+    LIBSSH2_SFTP_S_IWUSR,
+    LIBSSH2_SFTP_S_IXUSR,
+    LIBSSH2_SFTP_S_IROTH,
+    LIBSSH2_SFTP_S_IWOTH,
+    LIBSSH2_SFTP_S_IXOTH
+]
+
+MASK2SIGN_MAP: t.Dict[int, str] = {
+    LIBSSH2_SFTP_S_IFBLK: "b",
+    LIBSSH2_SFTP_S_IFCHR: "c",
+    LIBSSH2_SFTP_S_IFDIR: "d",
+    LIBSSH2_SFTP_S_IFIFO: "p",
+    LIBSSH2_SFTP_S_IFLNK: "l",
+    LIBSSH2_SFTP_S_IFREG: "-",
+    LIBSSH2_SFTP_S_IFSOCK: "s",
+    LIBSSH2_SFTP_S_IRGRP: "r",
+    LIBSSH2_SFTP_S_IROTH: "r",
+    LIBSSH2_SFTP_S_IRUSR: "r",
+    LIBSSH2_SFTP_S_IWOTH: "w",
+    LIBSSH2_SFTP_S_IWUSR: "w",
+    LIBSSH2_SFTP_S_IXOTH: "x",
+    LIBSSH2_SFTP_S_IXUSR: "x"
+}
+
+
+def parse_permissions(permissions: int) -> str:
+    """Parse permissions
+
+    Parses permissions bitmask into
+    Unix-like permissions string
+
+    :param permissions: Permissions bitmask
+    :return: Unix-like permissions string"""
+    result = ""
+    for mask in FILETYPE_MASKS:
+        if permissions & mask == mask:
+            result += MASK2SIGN_MAP[mask]
+            break
+
+    for mask in PERMISSIONS_MASKS:
+        if permissions & mask == mask:
+            result += MASK2SIGN_MAP[mask]
+        else:
+            result += "-"
+
+    return result
+
+
+class FileAttributes(t.NamedTuple):
+    atime: datetime
+    mtime: datetime
+    size: int
+    uid: int
+    gid: int
+    permissions: t.Union[str, int]
+
+
+def parse_attrs(attrs: SFTPAttributes) -> FileAttributes:
+    return FileAttributes(
+        atime=datetime.fromtimestamp(attrs.atime),
+        mtime=datetime.fromtimestamp(attrs.mtime),
+        size=attrs.filesize,
+        uid=attrs.uid,
+        gid=attrs.gid,
+        permissions=parse_permissions(attrs.permissions)
+    )
 
 
 def find_knownhosts() -> str:
