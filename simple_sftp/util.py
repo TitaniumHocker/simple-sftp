@@ -5,7 +5,6 @@ import socket
 import typing as t
 from datetime import datetime
 from getpass import getuser
-from itertools import chain
 
 import ssh2
 from ssh2.session import Session
@@ -84,7 +83,11 @@ def parse_permissions(permissions: int) -> str:
             result += MASK2SIGN_MAP[mask]
             break
 
-    for mask in PERMISSIONS_MASKS:
+    for i, mask in enumerate(PERMISSIONS_MASKS):
+        # Fix because of equal r/x masks for owner and group
+        if 4 <= i + 1 <= 7 and permissions & LIBSSH2_SFTP_S_IRGRP != LIBSSH2_SFTP_S_IRGRP:
+            result += "-"
+            continue
         if permissions & mask == mask:
             result += MASK2SIGN_MAP[mask]
         else:
