@@ -2,15 +2,16 @@ import logging
 import typing as t
 
 import ssh2
-from ssh2.knownhost import (LIBSSH2_KNOWNHOST_KEY_SSHRSA,
-                            LIBSSH2_KNOWNHOST_KEYENC_RAW,
-                            LIBSSH2_KNOWNHOST_TYPE_PLAIN)
-from ssh2.session import (LIBSSH2_HOSTKEY_HASH_SHA1, LIBSSH2_HOSTKEY_TYPE_RSA,
-                          Session)
+from ssh2.knownhost import (
+    LIBSSH2_KNOWNHOST_KEY_SSHRSA,
+    LIBSSH2_KNOWNHOST_KEYENC_RAW,
+    LIBSSH2_KNOWNHOST_TYPE_PLAIN,
+)
+from ssh2.session import LIBSSH2_HOSTKEY_HASH_SHA1, LIBSSH2_HOSTKEY_TYPE_RSA, Session
 from ssh2.sftp import SFTP
 
-from .auth import AgentAuthorization, KeyAuthorization, PasswordAuthorization
-from .util import find_knownhosts, make_socket, make_ssh_session
+from .auth import AuthHandlersType
+from .util import find_knownhosts, make_socket, make_ssh_session, pick_auth_method
 
 logger = logging.getLogger(__name__)
 
@@ -20,21 +21,16 @@ class SFTPClient:
 
     :param host: Host name to connect.
     :param port: Port to connect.
-    :param username: Username that will be used for
-        username/password authorization, optional.
-    :param password: Password that will be used for
-        username/password authorization, optional.
-    :param pkey: Private key path that will be used
-        for key authorization, optional.
-    :param agent_auth_user: Username for user agent
-        authorization method, optional.
-    :param knownhosts_path: Path to known_hosts file,
-        if not provided an attempt will be made  to
-        find the file in common places.
-    :param force_keepalive: If set to `True` keepalive
-        options for socket and ssh session will be forced.
-    :param knownhosts_behavior: Type of behavior for
-        processing known_hosts file, optional."""
+    :param username: Username that will be used for username/password authorization.
+    :param password: Password that will be used for username/password authorization.
+    :param pkey: Private key path that will be used for key authorization.
+    :param passphrase: Passphrase to unlock private key.
+    :param agent_username: Username for user agent authorization method.
+    :param knownhosts: Path to *known_hosts* file. If not provided an attempt will
+        be made to find the file in common places.
+    :param validate_host: If set to `True` host validation will be made.
+    :param force_keepalive: If set to `True` keepalive options for socket and SSH
+        session will be forced."""
     def __init__(
         self,
         host: str,
@@ -42,31 +38,46 @@ class SFTPClient:
         username: t.Optional[str] = None,
         password: t.Optional[str] = None,
         pkey: t.Optional[str] = None,
-        agent_auth_user: t.Optional[str] = None,
-        host_validation: bool = True,
+        passphrase: str = '',
+        agent_username: t.Optional[str] = None,
+        knownhosts: t.Optional[str] = None,
+        validate_host: bool = True,
         force_keepalive: bool = False,
-        knownhosts_auto: bool = True,
-        knownhosts_path: t.Optional[str] = None
     ):
         self.host: str = host
         self.port: int = port
-        self.host_validation: bool = host_validation
+        self.knownhosts: str = knownhosts if knownhosts is not None else find_knownhosts()
+        self.validate_host: bool = validate_host
         self.force_keepalive: bool = force_keepalive
-        self.knownhosts_path: str = knownhosts_path \
-            if knownhosts_path is not None else find_knownhosts()
+        self.auth_handler: AuthHandlersType = pick_auth_method(
+            username, password, agent_username, pkey, passphrase
+        )
         self._session: SFTP
+
+    def _start_sftp_session(self) -> SFTP:
+        """Start new SFTP session
+
+        :return: SFTP session."""
+        ssh_session = make_ssh_session(
+            make_socket(self.host, self.port, force_keepalive=self.force_keepalive),
+            use_keepalive=self.force_keepalive
+        )
+        self.auth_handler.auth(ssh_session)
+        self._session = ssh_session.sftp_init()
+        return self._session
 
     @property
     def session(self) -> SFTP:
         if hasattr(self, '_session') and isinstance(self._session, SFTP):
-            return self.session
-        pass
+            return self._session
+        return self._start_sftp_session()
 
     def __enter__(self):
+        self._start_sftp_session()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        pass
+        self._session = None
 
     @property
     def hostkey_hash(self) -> str:
@@ -74,9 +85,6 @@ class SFTPClient:
         return self.session.session.hostkey_hash(
             LIBSSH2_HOSTKEY_HASH_SHA1
         ).decode('utf-8')
-
-    def validate_host(self):
-        pass
 
     def ls(self, path: str = '.'):
         pass

@@ -1,2 +1,2 @@
 """Simple SFTP Client"""
-from .base import SFTPClient  # noqa
+from .base import SFTPClient  # noqa: F401

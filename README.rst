@@ -11,7 +11,50 @@ simple-sftp
 Simple well-typed SFTP(*SSH File Transfer Protocol*) python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package,
 which actually is bindings to *libssh2* C library.
 
-**Work in progress**
+.. contents:: Table of contents
+
+Goals
+=====
+
+This project main goal is to provide simple interface for using SFTP.
+It's just simple wrapper over `ssh2-python` package and nothing more.
+
+Quickstart
+==========
+
+This simple example will print list of files and directories:
+
+.. include:: ./examples/quickstart.py
+   :code: python
+
+
+Installation
+============
+
+From PyPI
+---------
+
+This package is available on PyPI and can be installed via `pip`.
+
+.. code:: bash
+
+    pip install simple-sftp
+
+From source
+-----------
+
+.. code:: bash
+
+    git clone https://github.com/TitaniumHocker/simple-sftp.git
+    cd simple-sftp
+    python3 setup.py install
+
+
+Documentation
+=============
+
+Documentation of this project is available at `readthedocs <simple-sftp.rtfd.io>`_.
+
 
 .. |license| image:: https://img.shields.io/github/license/TitaniumHocker/simple-sftp
 

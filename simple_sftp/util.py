@@ -85,7 +85,7 @@ def make_socket(
             f"Connection timeout reached while trying "
             f"to establish connection to {host}:{port}"
         ) from exc
-    
+
     logger.debug("Socket successfully connected.")
 
     return sock
@@ -127,7 +127,7 @@ def make_ssh_session(
             raise excs.HandShakeFailedError(
                 "Connection seems to be closed by remote host"
             ) from exc
-    
+
     logger.debug("SSH handshake successfully made.")
     return ssh
 
@@ -138,11 +138,7 @@ def pick_auth_method(
     agent_username: t.Optional[str] = None,
     pkey_path: t.Optional[str] = None,
     passphrase: str = ''
-) -> t.Union[
-    auth.AgentAuthorization,
-    auth.PasswordAuthorization,
-    auth.KeyAuthorization
-]:
+) -> auth.AuthHandlersType:
     """Picks authorization method from provided credentials
 
     :param username: Username for username/password authorization.
