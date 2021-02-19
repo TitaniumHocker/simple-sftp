@@ -25,6 +25,7 @@ Quickstart
 This simple example will print list of files and directories:
 
 .. code:: python
+
     from simple_sftp import SFTPClient
 
 

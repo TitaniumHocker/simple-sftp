@@ -56,7 +56,7 @@ class SFTPClient:
         )
         self._session: SFTP
 
-    def _start_sftp_session(self) -> SFTP:
+    def connect(self) -> SFTP:
         """
         Start new SFTP session
 
@@ -68,20 +68,25 @@ class SFTPClient:
         )
         self.auth_handler.auth(ssh_session)
         self._session = ssh_session.sftp_init()
-        return self._session
+
+    def disconnect(self):
+        if hasattr(self, '_session') and isinstance(self._session, SFTP):
+            self._session.session.disconnect()
+            del self._session
 
     @property
     def session(self) -> SFTP:
         if hasattr(self, '_session') and isinstance(self._session, SFTP):
             return self._session
-        return self._start_sftp_session()
+        self.connect()
+        return self._session
 
     def __enter__(self):
-        self._start_sftp_session()
+        self.connect()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._session = None
+        self.disconnect()
 
     @property
     def hostkey_hash(self) -> str:
