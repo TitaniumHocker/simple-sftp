@@ -11,7 +11,14 @@ from ssh2.session import LIBSSH2_HOSTKEY_HASH_SHA1, LIBSSH2_HOSTKEY_TYPE_RSA, Se
 from ssh2.sftp import SFTP
 
 from .auth import AuthHandlersType
-from .util import find_knownhosts, make_socket, make_ssh_session, parse_attrs, pick_auth_method
+from .util import (
+    FileAttributes,
+    find_knownhosts,
+    make_socket,
+    make_ssh_session,
+    parse_attrs,
+    pick_auth_method,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +43,7 @@ class SFTPClient:
     def __init__(
         self,
         host: str,
+        *,
         port: int = 22,
         username: t.Optional[str] = None,
         password: t.Optional[str] = None,
@@ -55,6 +63,11 @@ class SFTPClient:
             username, password, agent_username, pkey, passphrase
         )
         self._session: SFTP
+        self._host_validated: bool = False
+
+    def process_host_validation(self):
+        """Validate host"""
+        pass
 
     def connect(self) -> SFTP:
         """
@@ -62,6 +75,9 @@ class SFTPClient:
 
         :return: SFTP session.
         """
+        if self.validate_host and not self._host_validated:
+            self.process_host_validation()
+
         ssh_session = make_ssh_session(
             make_socket(self.host, self.port, force_keepalive=self.force_keepalive),
             use_keepalive=self.force_keepalive
@@ -95,11 +111,22 @@ class SFTPClient:
             LIBSSH2_HOSTKEY_HASH_SHA1
         ).decode('utf-8')
 
-    def ls(self, path: str = '.') -> t.List[t.Tuple[str, t.Any]]:
-        """Get list of files and directories
+    def realpath(self, path):
+        """
+        Get real path for path
+
+        :param path: Path to get real path for.
+        :return: Real path.
+        """
+        return self.session.realpath(path)
+
+    def ls(self, path: str = '.') -> t.List[t.Tuple[str, FileAttributes]]:
+        """
+        Get list of files and directories
 
         :param path: Path to be listed.
-        :return: List of tuples with file/dir names and attributes."""
+        :return: List of tuples with file/dir names and attributes.
+        """
         with self.session.opendir(path) as dh:
             return [
                 (name.decode('utf-8'), parse_attrs(attrs))
@@ -110,12 +137,28 @@ class SFTPClient:
         pass
 
     def rm(self, path: str):
-        pass
+        """
+        Remove file
+
+        :param path: Path of file to delete.
+        """
+        self.session.unlink(path)
 
     def rmdir(self, path: str):
-        pass
+        """
+        Remove directory
 
-    def mkdir(self, path: str):
+        :param path: Path to directory to remove.
+        """
+        self.session.rmdir(path)
+
+    def mkdir(self, path: str, permissions: str = 'rwxrwxr-x'):
+        """
+        Create directory
+
+        :param path: Path of directory to create.
+        :param permissions: Unix-like string with permissions of new directory.
+        """
         pass
 
     def get_stat(self, path: str):
@@ -124,10 +167,21 @@ class SFTPClient:
     def set_stat(self, path: str):
         pass
 
-    def ln(self, from_path: str, to_path: str):
-        pass
+    def ln(self, path: str, target: str):
+        """
+        Create symlink
+
+        :param path: Source path.
+        :param target: Target path.
+        """
+        return self.session.symlink(path, target)
 
     def unlink(self, path: str):
+        """
+        Delete symlink
+
+        :param path: Path to symlink to delete.
+        """
         pass
 
     def get(self, path: str, fh: t.IO):

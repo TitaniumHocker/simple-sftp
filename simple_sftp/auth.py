@@ -16,24 +16,30 @@ logger = logging.getLogger(__name__)
 class AbstractAuthorization(ABC):
     """Abstract authorization"""
     def auth(self, session: Session):
-        """Process authorization for SSH session
+        """
+        Process authorization for SSH session
 
-        :param session: SSH session"""
+        :param session: SSH session
+        """
         self.process_authorization(session)
         self.validate_authorization(session)
 
     @abstractmethod
     def process_authorization(self, session: Session):
-        """Authorize SSH session
+        """
+        Authorize SSH session
 
-        :param session: SSH session"""
+        :param session: SSH session
+        """
         pass
 
     def validate_authorization(self, session: Session):
-        """Validate that session is authenticated
+        """
+        Validate that session is authenticated
 
         :param session: SSH session
-        :raise AuthorizationError: If session isn't authorized"""
+        :raise AuthorizationError: If session isn't authorized
+        """
         logging.debug("Trying to validate that SSH session is authorized.")
         if not session.userauth_authenticated():
             raise excs.AuthorizationError(
@@ -44,10 +50,12 @@ class AbstractAuthorization(ABC):
 
 
 class AgentAuthorization(AbstractAuthorization):
-    """Agent based authorization handler
+    """
+    Agent based authorization handler
 
     :param username: User name. Optional, if not provided
-        `getpass.getuser` function will be used instead."""
+        `getpass.getuser` function will be used instead.
+    """
     def __init__(self, username: t.Optional[str] = None):
         logger.debug("Creating agent authorization handler.")
         self.username: str = getuser() if username is None else username
@@ -76,7 +84,8 @@ class AgentAuthorization(AbstractAuthorization):
 
 
 class KeyAuthorization(AbstractAuthorization):
-    """Key authorization handler
+    """
+    Key authorization handler
 
     :param path: Path to private key file.
         The path can be either full or relative.
@@ -84,7 +93,8 @@ class KeyAuthorization(AbstractAuthorization):
         By default is empty string.
     :param username: Username to authenticate as.
         If not provided `getpass.getuser` function
-        will be used instead."""
+        will be used instead.
+    """
     def __init__(
         self,
         path: str,
@@ -93,8 +103,16 @@ class KeyAuthorization(AbstractAuthorization):
     ):
         logger.debug("Creating key authorization handler.")
         self.username: str = getuser() if username is None else username
-        self.path: str = path if path.startswith('/') else os.path.join(os.getcwd(), path)
+        self.path: str = self.get_path(path)
         self.passphrase: str = passphrase
+
+    @staticmethod
+    def get_path(path: str) -> str:
+        if path.startswith('~'):
+            return os.path.expanduser(path)
+        if path.startswith('/'):
+            return path
+        return os.path.join(os.getcwd(), path)
 
     def process_authorization(self, session: Session):
         logger.debug("Trying to authorize SSH session with key...")
@@ -103,10 +121,12 @@ class KeyAuthorization(AbstractAuthorization):
 
 
 class PasswordAuthorization(AbstractAuthorization):
-    """Login and password authorization handler
+    """
+    Login and password authorization handler
 
     :param login: Login that will be used for authorization.
-    :param password: Password that will be used for authorization."""
+    :param password: Password that will be used for authorization.
+    """
     def __init__(self, login: str, password: str):
         logger.debug("Creating password authorization handler.")
         self.login: str = login
