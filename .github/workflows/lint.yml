@@ -21,4 +21,4 @@ jobs:
       run: |
         poetry install --quiet --no-interaction
     - name: Lint with flake8
-      run: poetry run flakehell lint
+      run: poetry run flakehell lint simple_sftp/
