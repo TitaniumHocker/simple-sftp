@@ -49,6 +49,8 @@ This package is available on PyPI and can be installed via `pip`.
 From source
 -----------
 
+Or build and installed from source.
+
 .. code:: bash
 
     git clone https://github.com/TitaniumHocker/simple-sftp.git
