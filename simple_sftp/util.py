@@ -1,6 +1,7 @@
 """Helper functions, decorators and another stuff"""
 import logging
 import os
+import re
 import socket
 import typing as t
 from datetime import datetime
@@ -18,10 +19,13 @@ from ssh2.sftp import LIBSSH2_SFTP_S_IFSOCK  # ftype: Socket
 from ssh2.sftp import LIBSSH2_SFTP_S_IRGRP  # group: Read
 from ssh2.sftp import LIBSSH2_SFTP_S_IROTH  # other: Read
 from ssh2.sftp import LIBSSH2_SFTP_S_IRUSR  # owner: Read
+from ssh2.sftp import LIBSSH2_SFTP_S_IWGRP  # group: Write
 from ssh2.sftp import LIBSSH2_SFTP_S_IWOTH  # other: Write
-from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR  # owner/group: Write
+from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR  # owner: Write
+from ssh2.sftp import LIBSSH2_SFTP_S_IXGRP  # group: Execute
 from ssh2.sftp import LIBSSH2_SFTP_S_IXOTH  # other: Execute
-from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR  # owner/group: Execute
+from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR  # owner: Execute
+
 from ssh2.sftp_handle import SFTPAttributes
 
 from . import auth, excs
@@ -30,13 +34,13 @@ logger = logging.getLogger(__name__)
 
 
 FILETYPE_MASKS: t.List[int] = [
+    LIBSSH2_SFTP_S_IFSOCK,
     LIBSSH2_SFTP_S_IFBLK,
     LIBSSH2_SFTP_S_IFCHR,
     LIBSSH2_SFTP_S_IFDIR,
     LIBSSH2_SFTP_S_IFIFO,
     LIBSSH2_SFTP_S_IFLNK,
-    LIBSSH2_SFTP_S_IFREG,
-    LIBSSH2_SFTP_S_IFSOCK
+    LIBSSH2_SFTP_S_IFREG
 ]
 
 PERMISSIONS_MASKS: t.List[int] = [
@@ -44,8 +48,8 @@ PERMISSIONS_MASKS: t.List[int] = [
     LIBSSH2_SFTP_S_IWUSR,
     LIBSSH2_SFTP_S_IXUSR,
     LIBSSH2_SFTP_S_IRGRP,
-    LIBSSH2_SFTP_S_IWUSR,
-    LIBSSH2_SFTP_S_IXUSR,
+    LIBSSH2_SFTP_S_IWGRP,
+    LIBSSH2_SFTP_S_IXGRP,
     LIBSSH2_SFTP_S_IROTH,
     LIBSSH2_SFTP_S_IWOTH,
     LIBSSH2_SFTP_S_IXOTH
@@ -62,37 +66,70 @@ MASK2SIGN_MAP: t.Dict[int, str] = {
     LIBSSH2_SFTP_S_IRGRP: "r",
     LIBSSH2_SFTP_S_IROTH: "r",
     LIBSSH2_SFTP_S_IRUSR: "r",
+    LIBSSH2_SFTP_S_IWGRP: "w",
     LIBSSH2_SFTP_S_IWOTH: "w",
     LIBSSH2_SFTP_S_IWUSR: "w",
+    LIBSSH2_SFTP_S_IXGRP: "x",
     LIBSSH2_SFTP_S_IXOTH: "x",
     LIBSSH2_SFTP_S_IXUSR: "x"
 }
 
 
-def parse_permissions(permissions: int) -> str:
-    """Parse permissions
+UNIX_PERMISSIONS_PATTERN = re.compile(r"^(([bcdpl\-s])?((\-|r)(\-|w)(\-|x)){3})$", re.I)
 
-    Parses permissions bitmask into
-    Unix-like permissions string
 
-    :param permissions: Permissions bitmask
-    :return: Unix-like permissions string"""
+def decode_permissions(permissions: int) -> str:
+    """
+    Decode permissions
+
+    Decodes permissions bitmask into Unix-like permissions string.
+
+    :param permissions: Permissions bitmask.
+    :return: Unix-like permissions string.
+    """
     result = ""
+
     for mask in FILETYPE_MASKS:
         if permissions & mask == mask:
             result += MASK2SIGN_MAP[mask]
             break
 
-    for i, mask in enumerate(PERMISSIONS_MASKS):
-        # Fix because of equal r/x masks for owner and group
-        if 4 <= i + 1 <= 7 and permissions & LIBSSH2_SFTP_S_IRGRP != LIBSSH2_SFTP_S_IRGRP:
-            result += "-"
-            continue
+    for mask in PERMISSIONS_MASKS:
         if permissions & mask == mask:
             result += MASK2SIGN_MAP[mask]
         else:
             result += "-"
 
+    return result
+
+
+def encode_permissions(permissions: str) -> int:
+    """
+    Encode permissions
+
+    Encodes permissions Unix-like string into permissions bitmask that
+    can be used with ssh2-python package(libssh2).
+
+    :param permissions: Unix-like permissions string.
+    :return: Persmissions bitmask.
+    :raise TypeError: If incorrect permissions string was provided.
+    """
+    if not UNIX_PERMISSIONS_PATTERN.match(permissions):
+        raise TypeError("Incorrect permissions string.")
+
+    result = 0
+
+    if len(permissions) == 10:
+        for mask in FILETYPE_MASKS:
+            if MASK2SIGN_MAP[mask] == permissions[0]:
+                result |= mask
+                permissions = permissions[1::]
+                break
+    
+    for i, mask in enumerate(PERMISSIONS_MASKS):
+        if MASK2SIGN_MAP[mask] == permissions[i]:
+            result |= mask
+    
     return result
 
 
@@ -102,7 +139,12 @@ class FileAttributes(t.NamedTuple):
     size: int
     uid: int
     gid: int
-    permissions: t.Union[str, int]
+    permissions: str
+
+    @property
+    def type(self) -> str:
+        """Filetype sign"""
+        return self.permissions[0]
 
 
 def parse_attrs(attrs: SFTPAttributes) -> FileAttributes:
@@ -112,18 +154,19 @@ def parse_attrs(attrs: SFTPAttributes) -> FileAttributes:
         size=attrs.filesize,
         uid=attrs.uid,
         gid=attrs.gid,
-        permissions=parse_permissions(attrs.permissions)
+        permissions=decode_permissions(attrs.permissions)
     )
 
 
 def find_knownhosts() -> str:
-    """Get known_hosts file full path
+    """
+    Get known_hosts file full path
 
     Searches for known hosts file in `~/.ssh` directory.
 
     :return: Full path to known_hosts file.
-    :raise KnownHostsNotFoundError: If
-        failed to find full path to known_hosts file."""
+    :raise KnownHostsNotFoundError: If failed to find full path to known_hosts file.
+    """
     relative_path: str = os.path.join('~', '.ssh', 'known_hosts')
     full_path: str = os.path.expanduser(relative_path)
     if relative_path != full_path and full_path.startswith('/') \
@@ -146,25 +189,24 @@ def make_socket(
         socket.TCP_KEEPCNT: 3
     }
 ) -> socket.socket:
-    """Make prepared socket
+    """
+    Make prepared socket
 
     Creates socket prepared for usage. If needed sets
     keep alive socket options directly on the socket.
 
     :param host: Host to connect.
     :param port: Port number to use.
-    :param connection_timeout: Connection timeout
-        in seconds. Optional, by default is `10.0` seconds.
-    :param force_keepalive: Flag for forcing socket
-        keepalive options. Default is `False`.
-    :param keepalive_options: Dictionary with keepalive
-        options that will be used if `force_keepalive`
-        is set to `True`. Keys of the dictionary is
-        keepalive options constants from `socket` package.
-        For example `socket.TCP_KEEPIDLE`.
+    :param connection_timeout: Connection timeout in seconds.
+        Optional, by default is `10.0` seconds.
+    :param force_keepalive: Flag for forcing socket keepalive options. Default is `False`.
+    :param keepalive_options: Dictionary with keepalive options that will be used if
+        `force_keepalive` is set to `True`. Keys of the dictionary is keepalive options constants
+        from `socket` package. For example `socket.TCP_KEEPIDLE`.
     :raise HostResolveError: If host resolving was unsuccessfull.
     :raise SockTimeoutError: If connection timeout has been reached.
-    :return: New configured socket."""
+    :return: New configured socket.
+    """
     logger.debug("Creating new socket with timeout %f.", connection_timeout)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(connection_timeout)
@@ -199,13 +241,14 @@ def make_ssh_session(
     retry_count: int = 3,
     use_keepalive: bool = True
 ) -> Session:
-    """Create ssh session from existing socket
+    """
+    Create ssh session from existing socket
 
     :param sock: Socket to use for SSH session.
-    :param retry_count: Count of max handshake
-        retries. By default is set to 3.
-    :param HandShakeFailedError: If SSH handshake fails.
-    :return: SSH Session."""
+    :param retry_count: Count of max handshake retries. By default is set to 3.
+    :raise HandShakeFailedError: If SSH handshake fails.
+    :return: SSH Session.
+    """
     logger.debug("Creating new SSH session from provided socket.")
     ssh: Session = Session()
     ssh.set_blocking(True)
@@ -249,9 +292,8 @@ def pick_auth_method(
     :param agent_username: Username for agent authorization.
     :param pkey_path: Path to private key for key authorization.
     :param passphrase: Passphrase for key authorization.
-    :raise TypeError: If credentials for multiple authorization
-        types was provided or not enough credentials was provided
-        to pick at least one authorization handler.
+    :raise TypeError: If credentials for multiple authorization types was provided or not enough
+        credentials was provided to pick at least one authorization handler.
     :return: Initialized authorization handler."""
     logger.debug("Trying to pick authorization method from provided credentials")
 

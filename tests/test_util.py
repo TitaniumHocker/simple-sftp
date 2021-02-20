@@ -1,6 +1,7 @@
 import os
 import socket
 from tempfile import TemporaryDirectory
+from datetime import datetime
 
 import pytest
 from ssh2.session import Session
@@ -14,6 +15,42 @@ def listener():
     sock.bind(('localhost', 0))
     sock.listen()
     return sock
+
+
+def test_decode_permissions(permissions2string):
+    for mask, string in permissions2string.items():
+        assert util.decode_permissions(mask) == string
+
+
+def test_encode_permissions(permissions2string, random_string):
+    for mask, string in permissions2string.items():
+        assert util.encode_permissions(string) == mask
+
+    with pytest.raises(TypeError):
+        util.encode_permissions(random_string() + 'abcd')
+
+
+def test_parse_attrs(initable_sftp_attributes):
+    attr = util.parse_attrs(initable_sftp_attributes)
+
+    assert isinstance(attr.mtime, datetime)
+    assert attr.mtime == datetime.fromtimestamp(initable_sftp_attributes.mtime)
+
+    assert isinstance(attr.atime, datetime)
+    assert attr.atime == datetime.fromtimestamp(initable_sftp_attributes.atime)
+
+    assert isinstance(attr.size, int)
+    assert attr.size == initable_sftp_attributes.filesize
+
+    assert isinstance(attr.gid, int)
+    assert attr.gid == initable_sftp_attributes.gid
+    
+    assert isinstance(attr.uid, int)
+    assert attr.uid == initable_sftp_attributes.uid
+
+    permissions = util.decode_permissions(initable_sftp_attributes.permissions)
+    assert attr.permissions == permissions
+    assert attr.type == permissions[0]
 
 
 def test_find_knownhosts(monkeypatch, random_string):
