@@ -52,6 +52,9 @@ def test_parse_attrs(initable_sftp_attributes):
     assert attr.permissions == permissions
     assert attr.type == permissions[0]
 
+    assert util.UNIX_PERMISSIONS_PATTERN.match(attr.permissions)
+    assert util.UNIX_PERMISSIONS_PATTERN.match(attr.permissions[1::])
+
 
 def test_find_knownhosts(monkeypatch, random_string):
     tempdir = TemporaryDirectory()
