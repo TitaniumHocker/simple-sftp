@@ -2,9 +2,11 @@
 simple-sftp
 ###########
 
-|requires|
 |tests|
+|lint|
+|mypy|
 |codecov|
+|requires|
 |codacy|
 |codeclimate|
 
@@ -66,6 +68,10 @@ Documentation of this project is available at `readthedocs <simple-sftp.rtfd.io>
    :target: https://codecov.io/gh/TitaniumHocker/simple-sftp
 
 .. |tests| image:: https://github.com/TitaniumHocker/simple-sftp/workflows/Tests/badge.svg
+
+.. |lint| image:: https://github.com/TitaniumHocker/simple-sftp/workflows/Lint/badge.svg
+
+.. |mypy| image:: https://github.com/TitaniumHocker/simple-sftp/workflows/mypy/badge.svg
 
 .. |codacy| image:: https://app.codacy.com/project/badge/Grade/48255d770d7349f3936a0090bd909833
 
