@@ -61,7 +61,7 @@ Or build and installed from source.
 Documentation
 =============
 
-Documentation of this project is available at `readthedocs <simple-sftp.rtfd.io>`_.
+Documentation of this project is available at `readthedocs <https://simple-sftp.rtfd.io>`_.
 
 
 .. |license| image:: https://img.shields.io/github/license/TitaniumHocker/simple-sftp
