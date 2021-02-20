@@ -4,13 +4,37 @@ version = "0.0.1"
 description = "Simple SFTP python client based on ssh2-python package"
 authors = ["Ivan Fedorov <inbox@titaniumhocker.ru>"]
 license = "MIT"
+readme = "README.rst"
+homepage = "https://github.com/TitaniumHocker/simple-sftp"
+repository = "https://github.com/TitaniumHocker/simple-sftp"
+documentation = "https://simple-sftp.rtfd.io"
+keywords = [
+    "sftp", "ssh"
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/TitaniumHocker/simple-sftp/issues"
 
 [tool.poetry.dependencies]
 python = "^3.6"
 ssh2-python = "^0.26.0"
-tox = "^3.21.4"
 
 [tool.poetry.dev-dependencies]
+tox = "^3.21.4"
 mypy = "^0.800"
 pytest = "^6.2.2"
 jedi = "^0.18.0"

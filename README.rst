@@ -51,7 +51,7 @@ From source
 
     git clone https://github.com/TitaniumHocker/simple-sftp.git
     cd simple-sftp
-    python3 setup.py install
+    pip install .
 
 
 Documentation
