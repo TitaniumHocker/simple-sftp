@@ -61,6 +61,7 @@ class AgentAuthorization(AbstractAuthorization):
         self.username: str = getuser() if username is None else username
 
     def process_authorization(self, session: Session):
+        """Authorize session with agent"""
         logger.debug("Trying to authorize SSH session with agent...")
         try:
             session.agent_auth(self.username)
@@ -108,6 +109,11 @@ class KeyAuthorization(AbstractAuthorization):
 
     @staticmethod
     def get_path(path: str) -> str:
+        """Get full path from relative path
+
+        :param str: Relative path.
+        :return: Full path.
+        """
         if path.startswith('~'):
             return os.path.expanduser(path)
         if path.startswith('/'):
@@ -115,6 +121,7 @@ class KeyAuthorization(AbstractAuthorization):
         return os.path.join(os.getcwd(), path)
 
     def process_authorization(self, session: Session):
+        """Authorize session with private key"""
         logger.debug("Trying to authorize SSH session with key...")
         session.userauth_publickey_fromfile(self.username, self.path, self.passphrase)
         logger.debug("SSH session successfully authorized with key.")
@@ -133,6 +140,7 @@ class PasswordAuthorization(AbstractAuthorization):
         self.password: str = password
 
     def process_authorization(self, session: Session):
+        """Authorize session with username and password"""
         logger.debug("Trying to authorize SSH session with password...")
         try:
             session.userauth_password(self.login, self.password)

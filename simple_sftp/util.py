@@ -25,7 +25,6 @@ from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR  # owner: Write
 from ssh2.sftp import LIBSSH2_SFTP_S_IXGRP  # group: Execute
 from ssh2.sftp import LIBSSH2_SFTP_S_IXOTH  # other: Execute
 from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR  # owner: Execute
-
 from ssh2.sftp_handle import SFTPAttributes
 
 from . import auth, excs
@@ -125,15 +124,16 @@ def encode_permissions(permissions: str) -> int:
                 result |= mask
                 permissions = permissions[1::]
                 break
-    
+
     for i, mask in enumerate(PERMISSIONS_MASKS):
         if MASK2SIGN_MAP[mask] == permissions[i]:
             result |= mask
-    
+
     return result
 
 
 class FileAttributes(t.NamedTuple):
+    """File attributes"""
     atime: datetime
     mtime: datetime
     size: int
@@ -148,6 +148,11 @@ class FileAttributes(t.NamedTuple):
 
 
 def parse_attrs(attrs: SFTPAttributes) -> FileAttributes:
+    """Parse attributes
+
+    :param attrs: Instalnse of `SFTPAttributes`.
+    :return: Instance of `FileAttributes`.
+    """
     return FileAttributes(
         atime=datetime.fromtimestamp(attrs.atime),
         mtime=datetime.fromtimestamp(attrs.mtime),
@@ -285,7 +290,7 @@ def pick_auth_method(
     pkey_path: t.Optional[str] = None,
     passphrase: str = ''
 ) -> auth.AuthHandlersType:
-    """Picks authorization method from provided credentials
+    """Pick authorization method from provided credentials
 
     :param username: Username for username/password authorization.
     :param password: Password for username/password authorization.
@@ -294,7 +299,8 @@ def pick_auth_method(
     :param passphrase: Passphrase for key authorization.
     :raise TypeError: If credentials for multiple authorization types was provided or not enough
         credentials was provided to pick at least one authorization handler.
-    :return: Initialized authorization handler."""
+    :return: Initialized authorization handler.
+    """
     logger.debug("Trying to pick authorization method from provided credentials")
 
     if username is None and password is None and \
