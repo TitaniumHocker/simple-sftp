@@ -68,15 +68,18 @@ HOSTKEYTYPE_MAP: t.Dict[int, int] = {
 }
 
 
-FILETYPE_MASKS: t.List[int] = [
-    LIBSSH2_SFTP_S_IFSOCK,
-    LIBSSH2_SFTP_S_IFBLK,
-    LIBSSH2_SFTP_S_IFCHR,
-    LIBSSH2_SFTP_S_IFDIR,
-    LIBSSH2_SFTP_S_IFIFO,
-    LIBSSH2_SFTP_S_IFLNK,
-    LIBSSH2_SFTP_S_IFREG,
-]
+FILETYPE_MASKS: t.List[int] = sorted(
+    [
+        LIBSSH2_SFTP_S_IFSOCK,
+        LIBSSH2_SFTP_S_IFBLK,
+        LIBSSH2_SFTP_S_IFCHR,
+        LIBSSH2_SFTP_S_IFDIR,
+        LIBSSH2_SFTP_S_IFIFO,
+        LIBSSH2_SFTP_S_IFLNK,
+        LIBSSH2_SFTP_S_IFREG,
+    ],
+    reverse=True,
+)
 
 
 PERMISSIONS_MASKS: t.List[int] = [

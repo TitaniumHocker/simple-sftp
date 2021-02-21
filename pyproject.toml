@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simple-sftp"
-version = "0.0.1"
+version = "0.1"
 description = "Simple SFTP python client based on ssh2-python package"
 authors = ["Ivan Fedorov <inbox@titaniumhocker.ru>"]
 license = "MIT"
@@ -12,7 +12,7 @@ keywords = [
     "sftp", "ssh"
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.6",
@@ -67,6 +67,10 @@ flake8-docstrings = ["+*", "-D400", "-D107", "-D204", "-D105"]
 flake8-isort = ["+*"]
 flake8-black = ["+*"]
 
+[tool.flakehell.exceptions."tests/*"]
+flake8-docstrings = ["-*"]
+pycodestyle = ["-F401"]
+
 [tool.isort]
 profile = "hug"
 src_paths = ["simple_sftp", "tests"]
@@ -82,7 +86,7 @@ source = [
 ]
 
 [tool.coverage.report]
-fail_under = 70
+fail_under = 80
 show_missing = true
 
 [tool.tox]

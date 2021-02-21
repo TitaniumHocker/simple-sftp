@@ -1,26 +1,27 @@
+"""Global conftest"""
 from random import choice
 from string import ascii_letters
 
-from factory import Faker, Factory
-from pytest_factoryboy import register
 import pytest
+from factory import Factory, Faker
+from pytest_factoryboy import register
+from ssh2.sftp import LIBSSH2_SFTP_S_IFBLK as IFBLK
+from ssh2.sftp import LIBSSH2_SFTP_S_IFCHR as IFCHR
+from ssh2.sftp import LIBSSH2_SFTP_S_IFDIR as IFDIR
+from ssh2.sftp import LIBSSH2_SFTP_S_IFIFO as IFIFO
+from ssh2.sftp import LIBSSH2_SFTP_S_IFLNK as IFLNK
+from ssh2.sftp import LIBSSH2_SFTP_S_IFREG as IFREG
+from ssh2.sftp import LIBSSH2_SFTP_S_IFSOCK as IFSOCK
+from ssh2.sftp import LIBSSH2_SFTP_S_IRGRP as IRGRP
+from ssh2.sftp import LIBSSH2_SFTP_S_IROTH as IROTH
+from ssh2.sftp import LIBSSH2_SFTP_S_IRUSR as IRUSR
+from ssh2.sftp import LIBSSH2_SFTP_S_IWGRP as IWGRP
+from ssh2.sftp import LIBSSH2_SFTP_S_IWOTH as IWOTH
+from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR as IWUSR
+from ssh2.sftp import LIBSSH2_SFTP_S_IXGRP as IXGRP
+from ssh2.sftp import LIBSSH2_SFTP_S_IXOTH as IXOTH
+from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR as IXUSR
 from ssh2.sftp_handle import SFTPAttributes
-from ssh2.sftp import LIBSSH2_SFTP_S_IFBLK as IFBLK # ftype: Block special (block device)
-from ssh2.sftp import LIBSSH2_SFTP_S_IFCHR as IFCHR  # ftype: Character special (character device)
-from ssh2.sftp import LIBSSH2_SFTP_S_IFDIR as IFDIR  # ftype: Directory
-from ssh2.sftp import LIBSSH2_SFTP_S_IFIFO as IFIFO  # ftype: Named pipe (fifo)
-from ssh2.sftp import LIBSSH2_SFTP_S_IFLNK as IFLNK  # ftype: Symbolic link
-from ssh2.sftp import LIBSSH2_SFTP_S_IFREG as IFREG   # ftype: Regular file
-from ssh2.sftp import LIBSSH2_SFTP_S_IFSOCK as IFSOCK  # ftype: Socket
-from ssh2.sftp import LIBSSH2_SFTP_S_IRGRP as IRGRP  # group: Read
-from ssh2.sftp import LIBSSH2_SFTP_S_IROTH as IROTH  # other: Read
-from ssh2.sftp import LIBSSH2_SFTP_S_IRUSR as IRUSR  # owner: Read
-from ssh2.sftp import LIBSSH2_SFTP_S_IWGRP as IWGRP  # group: Write
-from ssh2.sftp import LIBSSH2_SFTP_S_IWOTH as IWOTH  # other: Write
-from ssh2.sftp import LIBSSH2_SFTP_S_IWUSR as IWUSR  # owner: Write
-from ssh2.sftp import LIBSSH2_SFTP_S_IXGRP as IXGRP  # group: Execute
-from ssh2.sftp import LIBSSH2_SFTP_S_IXOTH as IXOTH  # other: Execute
-from ssh2.sftp import LIBSSH2_SFTP_S_IXUSR as IXUSR  # owner: Execute
 
 
 @pytest.fixture(scope="session")
@@ -29,12 +30,16 @@ def random_string():
 
 
 PERMISSIONS2STRING_MAP = {
+    IFBLK | IRUSR | IWUSR | IXUSR: "brwx------",
+    IFCHR | IRGRP | IWGRP | IXGRP: "c---rwx---",
+    IFIFO | IROTH | IWOTH | IXOTH: "p------rwx",
+    IFLNK | IRUSR | IWGRP | IXOTH: "lr---w---x",
     IFDIR | IRUSR | IWUSR | IXUSR | IRGRP | IWGRP | IXGRP | IROTH | IXOTH: "drwxrwxr-x",
     IFREG | IRUSR | IWUSR | IRGRP | IWGRP | IROTH: "-rw-rw-r--",
     IFREG | IRUSR | IWUSR | IXUSR | IRGRP | IWGRP | IXGRP | IROTH: "-rwxrwxr--",
     IRUSR | IWUSR | IRGRP | IWGRP | IROTH: "rw-rw-r--",
     IFSOCK | IRUSR | IWUSR | IXUSR | IRGRP | IWGRP | IXGRP: "srwxrwx---",
-    IFREG | IRGRP | IROTH | IWOTH | IXOTH: "----r--rwx"
+    IFREG | IRGRP | IROTH | IWOTH | IXOTH: "----r--rwx",
 }
 
 
@@ -57,7 +62,7 @@ class InitableSFTPAttributes(SFTPAttributes):
 class SFTPAttributesFactory(Factory):
     class Meta:
         model = InitableSFTPAttributes
-    
+
     atime = Faker("unix_time")
     mtime = Faker("unix_time")
     uid = Faker("random_int")
