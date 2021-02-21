@@ -1,4 +1,5 @@
 """Helper functions, decorators and another stuff"""
+import functools
 import logging
 import os
 import re
@@ -8,7 +9,23 @@ from datetime import datetime
 from getpass import getuser
 
 import ssh2
-from ssh2.session import Session
+from ssh2.knownhost import (
+    LIBSSH2_KNOWNHOST_KEY_ECDSA_256,
+    LIBSSH2_KNOWNHOST_KEY_ECDSA_384,
+    LIBSSH2_KNOWNHOST_KEY_ECDSA_521,
+    LIBSSH2_KNOWNHOST_KEY_SSHDSS,
+    LIBSSH2_KNOWNHOST_KEY_SSHRSA,
+    LIBSSH2_KNOWNHOST_KEYENC_RAW,
+    LIBSSH2_KNOWNHOST_TYPE_PLAIN,
+)
+from ssh2.session import (
+    LIBSSH2_HOSTKEY_TYPE_DSS,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_256,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_384,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_521,
+    LIBSSH2_HOSTKEY_TYPE_RSA,
+    Session,
+)
 from ssh2.sftp import LIBSSH2_SFTP_S_IFBLK  # ftype: Block special (block device)
 from ssh2.sftp import LIBSSH2_SFTP_S_IFCHR  # ftype: Character special (character device)
 from ssh2.sftp import LIBSSH2_SFTP_S_IFDIR  # ftype: Directory
@@ -32,6 +49,34 @@ from . import auth, excs
 logger = logging.getLogger(__name__)
 
 
+HOSTKEY_VERIFICATION_FAILED_MESSAGE = """
+Host key verification for {host} failed.
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+It is also possible that the host key has just been changed.
+The fingerprint for the key sent by the remote host is {hostkey_hash}.
+Expected fingerprint is {expected_hostkey_hash}.
+Add correct host key in {knownhosts} to get rid of this message.
+Offending key in {knownhosts}:{line_number}.
+
+If you are sure that the key has been changed and this is not MITM attack,
+then you can delete the old key with the following command:
+    ssh-keygen -R {host} -f {knownhosts}
+"""
+
+
+HOMEDIR_PATTERN = re.compile(r'^(\/home\/\w+)$')
+RWX_PATTERN = re.compile(r"^([rwx]{3})$")
+
+
+HOSTKEYTYPE_MAP: t.Dict[int, int] = {
+    LIBSSH2_HOSTKEY_TYPE_DSS: LIBSSH2_KNOWNHOST_KEY_SSHDSS,
+    LIBSSH2_HOSTKEY_TYPE_RSA: LIBSSH2_KNOWNHOST_KEY_SSHRSA,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_256: LIBSSH2_KNOWNHOST_KEY_ECDSA_256,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_384: LIBSSH2_KNOWNHOST_KEY_ECDSA_384,
+    LIBSSH2_HOSTKEY_TYPE_ECDSA_521: LIBSSH2_KNOWNHOST_KEY_ECDSA_521
+}
+
+
 FILETYPE_MASKS: t.List[int] = [
     LIBSSH2_SFTP_S_IFSOCK,
     LIBSSH2_SFTP_S_IFBLK,
@@ -41,6 +86,7 @@ FILETYPE_MASKS: t.List[int] = [
     LIBSSH2_SFTP_S_IFLNK,
     LIBSSH2_SFTP_S_IFREG
 ]
+
 
 PERMISSIONS_MASKS: t.List[int] = [
     LIBSSH2_SFTP_S_IRUSR,
@@ -163,6 +209,29 @@ def parse_attrs(attrs: SFTPAttributes) -> FileAttributes:
     )
 
 
+def reconnect(func: t.Callable) -> t.Callable:
+    """Reconnect on connection drop
+
+    Decorator to reconnect when connection was dropped by remote host.
+
+    :param func: Method of `simple_sftp.SFTP`.
+    :return: Decored method.
+    """
+    @functools.wraps(func)
+    def inner(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except ssh2.exceptions.SocketRecvError as exc:
+            if not self.reconnect_on_drop:
+                raise excs.ConnectionDroppedError(
+                    "Connection seems to by remote host"
+                ) from exc
+        logger.warning("Connection was dropped by remote host, reconnecting...")
+        self.connect()
+        return func(self, *args, **kwargs)
+    return inner
+
+
 def find_knownhosts() -> str:
     """
     Get known_hosts file full path
@@ -170,17 +239,23 @@ def find_knownhosts() -> str:
     Searches for known hosts file in `~/.ssh` directory.
 
     :return: Full path to known_hosts file.
-    :raise KnownHostsNotFoundError: If failed to find full path to known_hosts file.
     """
     relative_path: str = os.path.join('~', '.ssh', 'known_hosts')
     full_path: str = os.path.expanduser(relative_path)
     if relative_path != full_path and full_path.startswith('/') \
             and os.path.exists(full_path):
         return full_path
-    dummy_path = os.path.join('/home', getuser(), '.ssh', 'known_hosts')
-    if os.path.exists(dummy_path):
-        return dummy_path
-    raise excs.KnownHostsFileNotFoundError("Failed to find known_hosts file.")
+    return os.path.join('/home', getuser(), '.ssh', 'known_hosts')
+
+
+def pick_knownhost_typemask(hostkey_type: int) -> int:
+    """Pick knownhost typemask
+
+    :param hostkey_type: Type of remote host key.
+    :return: Typemask for checking in known_hosts file.
+    """
+    return LIBSSH2_KNOWNHOST_TYPE_PLAIN | \
+        LIBSSH2_KNOWNHOST_KEYENC_RAW | HOSTKEYTYPE_MAP[hostkey_type]
 
 
 def make_socket(
@@ -325,3 +400,18 @@ def pick_auth_method(
         return auth.KeyAuthorization(pkey_path, passphrase)
 
     raise TypeError("Failed to pick authorization type.")
+
+
+def walk(path: str) -> t.List[str]:
+    """Walk through directories
+
+    :param path: Path to traget directory.
+    :return: List of paths to walk
+    """
+    def inner(path: str) -> t.List[str]:
+        paths = [path]
+        head, tail = os.path.split(path)
+        if head:
+            paths.extend(inner(head))
+        return paths
+    return list(reversed(inner(path)))

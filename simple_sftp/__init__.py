@@ -1,2 +1,5 @@
-"""Simple SFTP Client"""
-from .base import SFTPClient  # noqa: F401
+"""Simple-SFTP package
+
+This package contains simple, easy to use, well-typed SFTP client.
+"""
+from .base import SFTP  # noqa: F401

@@ -1,4 +1,4 @@
-"""Authorization methods"""
+"""Authorization handlers"""
 import logging
 import os
 import typing as t
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractAuthorization(ABC):
-    """Abstract authorization"""
+    """Abstract authorization handler"""
     def auth(self, session: Session):
         """
         Process authorization for SSH session
@@ -51,7 +51,7 @@ class AbstractAuthorization(ABC):
 
 class AgentAuthorization(AbstractAuthorization):
     """
-    Agent based authorization handler
+    Agent authorization handler
 
     :param username: User name. Optional, if not provided
         `getpass.getuser` function will be used instead.

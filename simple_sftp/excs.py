@@ -5,37 +5,57 @@ class SimpleSFTPBaseError(Exception):
     """Base exception for simple-sftp package"""
 
 
-class KnownHostsFileNotFoundError(SimpleSFTPBaseError):
-    """Failed to find path to hosts file"""
+class SFTPConnectionError(SimpleSFTPBaseError):
+    """Connection failed"""
 
 
-class SockTimeoutError(SimpleSFTPBaseError):
+class SockTimeoutError(SFTPConnectionError):
     """Connection timeout reached while creating connection"""
 
 
-class HostResolveError(SimpleSFTPBaseError):
+class HostResolveError(SFTPConnectionError):
     """Failed to resolve host"""
 
 
-class HandShakeFailedError(SimpleSFTPBaseError):
+class HandShakeFailedError(SFTPConnectionError):
     """Handshake failed"""
 
 
-class HostValidationError(SimpleSFTPBaseError):
+class HostValidationError(SFTPConnectionError):
     """Host validation failed"""
 
 
-class AuthorizationError(SimpleSFTPBaseError):
+class ConnectionDroppedError(SFTPConnectionError):
+    """Connection was dropped by remote host"""
+
+
+class SFTPAuthorizationError(SimpleSFTPBaseError):
     """Authorization failed"""
 
 
-class AgentAuthorizationError(AuthorizationError):
+class AgentAuthorizationError(SFTPAuthorizationError):
     """Authorization with agent failed"""
 
 
-class KeyAuthorizationError(AuthorizationError):
+class KeyAuthorizationError(SFTPAuthorizationError):
     """Authorization with key failed"""
 
 
-class PasswordAuthorizationError(AuthorizationError):
+class PasswordAuthorizationError(SFTPAuthorizationError):
     """Authorization with password failed"""
+
+
+class SFTPOperationError(SimpleSFTPBaseError):
+    """Operation failed"""
+
+
+class PermissionDeniedError(SFTPOperationError):
+    """Permission denied"""
+
+
+class ChangingDirectoryError(SFTPOperationError):
+    """Can't change current working directory"""
+
+
+class NotFoundError(SFTPOperationError):
+    """Requested file or directory not found"""
