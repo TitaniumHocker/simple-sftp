@@ -9,6 +9,7 @@ simple-sftp
 |requires|
 |codacy|
 |codeclimate|
+|black|
 
 Simple well-typed SFTP(*SSH File Transfer Protocol*) python client based on `ssh2-python <https://github.com/ParallelSSH/ssh2-python>`_ package,
 which actually is bindings to *libssh2* C library.
@@ -84,3 +85,6 @@ Documentation of this project is available at `readthedocs <https://simple-sftp.
 .. |requires| image:: https://requires.io/github/TitaniumHocker/simple-sftp/requirements.svg?branch=master
    :target: https://requires.io/github/TitaniumHocker/simple-sftp/requirements/?branch=master
    :alt: Requirements Status
+
+.. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
