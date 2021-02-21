@@ -65,7 +65,7 @@ then you can delete the old key with the following command:
 
 
 HOMEDIR_PATTERN = re.compile(r'^(\/home\/\w+)$')
-RWX_PATTERN = re.compile(r"^([rwx]{3})$")
+RWX_PATTERN = re.compile(r"^([rwx]{1,3})$")
 
 
 HOSTKEYTYPE_MAP: t.Dict[int, int] = {
@@ -221,7 +221,8 @@ def reconnect(func: t.Callable) -> t.Callable:
     def inner(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
-        except ssh2.exceptions.SocketRecvError as exc:
+        except (ssh2.exceptions.SocketRecvError,
+                ssh2.exceptions.SocketSendError) as exc:
             if not self.reconnect_on_drop:
                 raise excs.ConnectionDroppedError(
                     "Connection seems to by remote host"

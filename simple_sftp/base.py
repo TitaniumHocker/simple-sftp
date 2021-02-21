@@ -101,7 +101,7 @@ class SFTP:
             return self.home
         return os.path.join(self.cwd, path)
 
-    @lru_cache
+    @lru_cache(128)
     def _check_permissions(self, path: str, permissions: str):
         """Check requested permissions on path
 
@@ -119,7 +119,7 @@ class SFTP:
         try:
             attrs = util.parse_attrs(self.session.stat(path))
         except ssh2.exceptions.SFTPProtocolError:
-            return excs.NotFoundError(f"Cannot access {path}: no such file or directory")
+            raise excs.NotFoundError(f"Cannot access {path}: no such file or directory")
 
         if self._uid is None or self._gid is None:
             return None
@@ -139,7 +139,7 @@ class SFTP:
                 attrs.gid == self._gid and perm in grp_perm,
                 perm in oth_perm
             ]):
-                return excs.PermissionDeniedError(f"Cannot access {path}: permission denied")
+                raise excs.PermissionDeniedError(f"Cannot access {path}: permission denied")
 
         return None
 
@@ -154,30 +154,8 @@ class SFTP:
         """
         ppath = self._preprocess_path(path)
 
-        try:
-            attrs: util.FileAttributes = self.get_stat(ppath)
-        except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.ChangingDirectoryError(f"Directory {path} not found") from e
-
-        if self._uid is None or self._gid is None:
-            self._cwd = ppath
-            return
-
-        if len(attrs.permissions) == 10:
-            usr_perm = attrs.permissions[1:4]
-            grp_perm = attrs.permissions[4:7]
-            oth_perm = attrs.permissions[7:]
-        else:
-            usr_perm = attrs.permissions[0:3]
-            grp_perm = attrs.permissions[3:6]
-            oth_perm = attrs.permissions[6:]
-
-        if not any([
-            attrs.uid == self._uid and 'r' in usr_perm and 'x' in usr_perm,
-            attrs.gid == self._gid and 'r' in grp_perm and 'x' in grp_perm,
-            'r' in oth_perm and 'x' in oth_perm
-        ]):
-            raise excs.ChangingDirectoryError("Permission denied")
+        for walked in util.walk(ppath):
+            self._check_permissions(walked, 'rx')
 
         self._cwd = ppath
 
@@ -300,10 +278,11 @@ class SFTP:
         :param path: Path to get real path for.
         :return: Real path.
         """
+        ppath = self._preprocess_path(path)
         try:
-            return self.session.realpath(path)
+            return self.session.realpath(ppath)
         except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.NotFoundError(f"File or directory {path} not found.") from e
+            raise excs.SFTPOperationError(f"Cannot acces {path}: unknown error") from e
 
     @util.reconnect
     def ls(self, path: str = '.') -> t.List[t.Tuple[str, util.FileAttributes]]:
@@ -313,20 +292,40 @@ class SFTP:
         :return: List of tuples with file/dir names and attributes.
         """
         ppath = self._preprocess_path(path)
+
+        # for walked in util.walk(ppath):
+            # self._check_permissions(walked, 'rx')
+
+        # try:
         with self.session.opendir(ppath) as dh:
             return [
                 (name.decode('utf-8'), util.parse_attrs(attrs))
                 for _, name, attrs in dh.readdir()
             ]
+        # except ssh2.exceptions.SFTPProtocolError as e:
+            # raise excs.SFTPOperationError(f"Cannot access {path}: unknown error") from e
 
     @util.reconnect
-    def mv(self, sorce: str, dest: str):
+    def mv(self, source: str, dest: str):
         """Move/rename file
 
         :param source: Source path.
         :param dest: Destination path.
         """
-        pass
+        psource = self._preprocess_path(source)
+        pdest = self._preprocess_path(dest)
+
+        for walked in util.walk(psource)[:-1]:
+            self._check_permissions(walked, 'rx')
+        for walked in util.walk(psource)[-1:]:
+            self._check_permissions(walked, 'rw')
+        for walked in util.walk(pdest)[:-1]:
+            self._check_permissions(walked, 'rwx')
+
+        try:
+            self.session.rename(psource, pdest)
+        except ssh2.exceptions.SFTPProtocolError as e:
+            raise excs.SFTPOperationError(f"Cannot access {source}, {dest}: unknown error") from e
 
     @util.reconnect
     def rm(self, path: str):
@@ -334,10 +333,17 @@ class SFTP:
 
         :param path: Path of file to delete.
         """
+        ppath = self._preprocess_path(path)
+
+        for walked in util.walk(ppath)[:-1]:
+            self._check_permissions(walked, 'rx')
+        for walked in util.walk(ppath)[-2:-1]:
+            self._check_permissions(walked, 'rwx')
+
         try:
-            self.session.unlink(path)
+            self.session.unlink(ppath)
         except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.NotFoundError("File {path} not found.") from e
+            raise excs.NotFoundError(f"Cannot access {path}: unknown error") from e
 
     @util.reconnect
     def rmdir(self, path: str):
