@@ -2,12 +2,13 @@
 import logging
 import os
 import typing as t
-from functools import lru_cache
 from hashlib import sha1
 
 import ssh2
 
-from . import auth, excs, util
+from . import auth, const
+from . import exceptions as excs
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class SFTP:
     SFTP client
 
     .. note::
-        All arguments except `host` are keyword-only arguments.
+        All arguments except `host` are keyword-only.
 
     :param host: Host name to connect.
     :param port: Port to connect.
@@ -37,6 +38,7 @@ class SFTP:
     :param reconnect_on_drop: If set to `True` client will try to reconnect if
         connection was dropped by remote host.
     """
+
     def __init__(
         self,
         host: str,
@@ -45,119 +47,57 @@ class SFTP:
         username: t.Optional[str] = None,
         password: t.Optional[str] = None,
         pkey: t.Optional[str] = None,
-        passphrase: str = '',
+        passphrase: str = "",
         agent_username: t.Optional[str] = None,
         knownhosts: t.Optional[str] = None,
         validate_host: bool = True,
         knownhosts_autoadd: bool = True,
         session_keepalive: bool = False,
         force_socket_keepalive: bool = False,
-        reconnect_on_drop: bool = True
+        reconnect_on_drop: bool = True,
     ):
+        #: Remote host name
         self.host: str = host
+        #: Remote host port
         self.port: int = port
+        #: Flag to perform host validation or not.
         self.validate_host: bool = validate_host
-        self.knownhosts: str = knownhosts if knownhosts is not None else util.find_knownhosts()
+        #: Path to known_hosts file.
+        self.knownhosts: str = (
+            knownhosts if knownhosts is not None else utils.find_knownhosts()
+        )
+        #: New host will be automaticly added to known_hosts file.
         self.knownhosts_autoadd: bool = knownhosts_autoadd
-
+        #: Use SSH session keepalive
         self.session_keepalive: bool = session_keepalive
+        #: Force socket keepalive
         self.force_socket_keepalive: bool = force_socket_keepalive
+        #: Reconnect if remote host dropped the connection
         self.reconnect_on_drop: bool = reconnect_on_drop
-
-        self.auth_handler: auth.AuthHandlersType = util.pick_auth_method(
+        #: Authorization handaler
+        self.auth_handler: auth.AuthHandlersType = utils.pick_auth_method(
             username, password, agent_username, pkey, passphrase
         )
-
         self._session: ssh2.sftp.SFTP
-        self._home: str
         self._host_validated: bool = False
-        self._cwd: str = '.'
-        self._uid: t.Optional[int] = None
-        self._gid: t.Optional[int] = None
+        self._cwd: str = "."
 
     @property
     def cwd(self) -> str:
         """Current working directory"""  # noqa: D401
         return self._cwd
 
-    @property
-    def home(self) -> str:
-        """Home directory"""  # noqa: D401
-        return self._home
-
     def _preprocess_path(self, path: str) -> str:
         """Preprocess path
 
-        Translates relative path to cwd/home relative path.
+        Translates relative path to cwd relative path.
 
         :param path: Source path.
         :return: Translated path.
         """
-        if path.startswith('/'):
+        if path.startswith("/"):
             return path
-        if path.startswith('~/'):
-            return os.path.join(self.home, path[2:])
-        if path == '~' or path == '':
-            return self.home
         return os.path.join(self.cwd, path)
-
-    @lru_cache(128)
-    def _check_permissions(self, path: str, permissions: str):
-        """Check requested permissions on path
-
-        This function checks requested permissions on path and
-        if check fails than it raises corresponding exception.
-
-        :raise TypeError: If invalid permissions string was provided.
-        :raise NotFoundError: If requested path not found.
-        :raise PermissionDeniedError: If not enough permissions to access
-            requested file or directory.
-        """
-        if not util.RWX_PATTERN.match(permissions):
-            raise TypeError(f"Unexpected permissions string {permissions}")
-
-        try:
-            attrs = util.parse_attrs(self.session.stat(path))
-        except ssh2.exceptions.SFTPProtocolError:
-            raise excs.NotFoundError(f"Cannot access {path}: no such file or directory")
-
-        if self._uid is None or self._gid is None:
-            return None
-
-        if len(attrs.permissions) == 10:
-            usr_perm = attrs.permissions[1:4]
-            grp_perm = attrs.permissions[4:7]
-            oth_perm = attrs.permissions[7:]
-        else:
-            usr_perm = attrs.permissions[0:3]
-            grp_perm = attrs.permissions[3:6]
-            oth_perm = attrs.permissions[6:]
-
-        for perm in permissions:
-            if not any([
-                attrs.uid == self._uid and perm in usr_perm,
-                attrs.gid == self._gid and perm in grp_perm,
-                perm in oth_perm
-            ]):
-                raise excs.PermissionDeniedError(f"Cannot access {path}: permission denied")
-
-        return None
-
-    def cd(self, path: str = '~'):
-        """Change directory
-
-        Changes the current working directory.
-
-        :param path: Directory to use, can be both relative and absolute.
-        :raise ChangingDirectoryError: If directory not found or not enough
-            permissions to change to this directory.
-        """
-        ppath = self._preprocess_path(path)
-
-        for walked in util.walk(ppath):
-            self._check_permissions(walked, 'rx')
-
-        self._cwd = ppath
 
     def _process_host_validation(self, session: ssh2.session.Session):
         """Validate host
@@ -173,17 +113,23 @@ class SFTP:
             logger.info("Found %i hosts in hosts file %s", hosts_count, self.knownhosts)
         except ssh2.exceptions.KnownHostReadFileError:
             if self.knownhosts_autoadd:
-                msg = ("Could't read knownhosts file in %s, file seems to be missing. "
-                       "A new file will be created on this path when adding a host.")
+                msg = (
+                    "Could't read knownhosts file in %s, file seems to be missing. "
+                    "A new file will be created on this path when adding a host."
+                )
             else:
-                msg = "Could't read knownhosts file in path %s, file seems to be missing."
+                msg = (
+                    "Could't read knownhosts file in path %s, file seems to be missing."
+                )
             logger.warning(msg, self.knownhosts)
 
         hostkey, keytype = session.hostkey()
-        knownhost_typemask = util.pick_knownhost_typemask(keytype)
+        knownhost_typemask = utils.pick_knownhost_typemask(keytype)
 
         try:
-            knownhosts.checkp(self.host.encode('utf-8'), self.port, hostkey, knownhost_typemask)
+            knownhosts.checkp(
+                self.host.encode("utf-8"), self.port, hostkey, knownhost_typemask
+            )
             logger.info("Host validation passed.")
         except ssh2.exceptions.KnownHostCheckNotFoundError as e:
             if not self.knownhosts_autoadd:
@@ -193,26 +139,31 @@ class SFTP:
                 ) from e
             logger.info("Adding new host %s to knownhosts file.", self.host)
             knownhosts.addc(
-                self.host.encode('utf-8'),
-                hostkey, knownhost_typemask,
-                comment="Added by simple-sftp python package.".encode('utf-8')
+                self.host.encode("utf-8"),
+                hostkey,
+                knownhost_typemask,
+                comment="Added by simple-sftp python package.".encode("utf-8"),
             )
             knownhosts.writefile(self.knownhosts)
             logger.info("Host %s was added to known_hosts file.", self.host)
         except ssh2.exceptions.KnownHostCheckMisMatchError as e:
             raise excs.HostValidationError(
-                util.HOSTKEY_VERIFICATION_FAILED_MESSAGE.format(
+                const.HOSTKEY_VERIFICATION_FAILED_MESSAGE.format(
                     host=self.host,
                     hostkey_hash=sha1(hostkey).hexdigest(),
-                    expected_hostkey_hash=sha1([
-                        knownhost.key for knownhost in knownhosts.get()
-                        if knownhost.name.decode() == self.host
-                    ][0]).hexdigest(),
+                    expected_hostkey_hash=sha1(
+                        [
+                            knownhost.key
+                            for knownhost in knownhosts.get()
+                            if knownhost.name.decode() == self.host
+                        ][0]
+                    ).hexdigest(),
                     knownhosts=self.knownhosts,
                     line_number=[
-                        i + 1 for i, knownhost in enumerate(knownhosts.get())
+                        i + 1
+                        for i, knownhost in enumerate(knownhosts.get())
                         if knownhost.name.decode() == self.host
-                    ][0]
+                    ][0],
                 )
             ) from e
 
@@ -223,40 +174,37 @@ class SFTP:
 
         :return: SFTP session.
         """
-        ssh_session = util.make_ssh_session(
-            util.make_socket(self.host, self.port, force_keepalive=self.force_socket_keepalive),
-            use_keepalive=self.session_keepalive
+        ssh_session = utils.make_ssh_session(
+            utils.make_socket(
+                self.host, self.port, force_keepalive=self.force_socket_keepalive
+            ),
+            use_keepalive=self.session_keepalive,
         )
         if self.validate_host and not self._host_validated:
             self._process_host_validation(ssh_session)
         self.auth_handler.auth(ssh_session)
         self._session = ssh_session.sftp_init()
 
-        self._home = self._session.realpath('.')
-
-        if self._uid is None or self._gid is None:
-            if util.HOMEDIR_PATTERN.match(self._session.realpath('.')):
-                attrs = util.parse_attrs(self._session.stat('.'))
-                self._uid = attrs.uid
-                self._gid = attrs.gid
-
-        self._check_permissions.cache_clear()
-
         return self._session
 
     def disconnect(self):
         """Disconnect current session"""
-        if hasattr(self, '_session') and isinstance(self._session, ssh2.sftp.SFTP):
+        if hasattr(self, "_session") and isinstance(self._session, ssh2.sftp.SFTP):
             self._session.session.disconnect()
             del self._session
 
     @property
     def session(self) -> ssh2.sftp.SFTP:
         """Current SFTP session"""  # noqa: D401
-        if hasattr(self, '_session') and isinstance(self._session, ssh2.sftp.SFTP):
+        if hasattr(self, "_session") and isinstance(self._session, ssh2.sftp.SFTP):
             return self._session
         self.connect()
         return self._session
+
+    @property
+    def session_last_error(self) -> str:
+        """Last error of SSH session"""  # noqa: D401
+        return self.session.session.last_error().decode("utf-8")
 
     def __enter__(self):
         self.connect()
@@ -271,136 +219,142 @@ class SFTP:
         hostkey, _ = self.session.session.hostkey()
         return sha1(hostkey).hexdigest()
 
-    @util.reconnect
+    def cd(self, path: str = "~"):
+        """Change directory
+
+        Changes the current working directory.
+
+        :param path: Directory to use, can be both relative and absolute.
+        :raise SFTPIOError: If can't access requested path(s).
+        """
+        ppath = self._preprocess_path(path)
+        try:
+            self.session.stat(ppath)
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
+        self._cwd = ppath
+
+    @utils.reconnect
     def realpath(self, path) -> str:
         """Get real path for path
 
         :param path: Path to get real path for.
         :return: Real path.
+        :raise SFTPIOError: If can't access requested path(s).
         """
         ppath = self._preprocess_path(path)
         try:
             return self.session.realpath(ppath)
-        except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.SFTPOperationError(f"Cannot acces {path}: unknown error") from e
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
 
-    @util.reconnect
-    def ls(self, path: str = '.') -> t.List[t.Tuple[str, util.FileAttributes]]:
+    @utils.reconnect
+    def ls(self, path: str = ".") -> t.List[t.Tuple[str, const.FileAttributes]]:
         """Get list of files and directories
 
         :param path: Path to be listed.
         :return: List of tuples with file/dir names and attributes.
+        :raise SFTPIOError: If can't access requested path(s).
         """
         ppath = self._preprocess_path(path)
+        try:
+            with self.session.opendir(ppath) as dh:
+                return [
+                    (name.decode("utf-8"), utils.parse_attrs(attrs))
+                    for _, name, attrs in dh.readdir()
+                ]
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
 
-        # for walked in util.walk(ppath):
-            # self._check_permissions(walked, 'rx')
-
-        # try:
-        with self.session.opendir(ppath) as dh:
-            return [
-                (name.decode('utf-8'), util.parse_attrs(attrs))
-                for _, name, attrs in dh.readdir()
-            ]
-        # except ssh2.exceptions.SFTPProtocolError as e:
-            # raise excs.SFTPOperationError(f"Cannot access {path}: unknown error") from e
-
-    @util.reconnect
+    @utils.reconnect
     def mv(self, source: str, dest: str):
         """Move/rename file
 
         :param source: Source path.
         :param dest: Destination path.
+        :raise SFTPIOError: If can't access requested path(s).
         """
         psource = self._preprocess_path(source)
         pdest = self._preprocess_path(dest)
-
-        for walked in util.walk(psource)[:-1]:
-            self._check_permissions(walked, 'rx')
-        for walked in util.walk(psource)[-1:]:
-            self._check_permissions(walked, 'rw')
-        for walked in util.walk(pdest)[:-1]:
-            self._check_permissions(walked, 'rwx')
-
         try:
             self.session.rename(psource, pdest)
-        except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.SFTPOperationError(f"Cannot access {source}, {dest}: unknown error") from e
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(source, dest, error=self.session_last_error)
 
-    @util.reconnect
+    @utils.reconnect
     def rm(self, path: str):
-        """Remove file
+        """Remove file, symlink or directory
 
         :param path: Path of file to delete.
+        :raise SFTPIOError: If can't access requested path(s).
         """
+        if self.get_stat(path).type == "d":
+            return self.rmdir(path)
+
         ppath = self._preprocess_path(path)
-
-        for walked in util.walk(ppath)[:-1]:
-            self._check_permissions(walked, 'rx')
-        for walked in util.walk(ppath)[-2:-1]:
-            self._check_permissions(walked, 'rwx')
-
         try:
             self.session.unlink(ppath)
-        except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.NotFoundError(f"Cannot access {path}: unknown error") from e
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
 
-    @util.reconnect
+    @utils.reconnect
     def rmdir(self, path: str):
         """Remove directory
 
         :param path: Path to directory to remove.
-        :raise NotFoundError: If directory does not exists.
-        :raise PermissionDeniedError: If not enough permissions to remove directory.
+        :raise SFTPIOError: If can't access requested path(s).
         """
         ppath = self._preprocess_path(path)
         try:
-            attrs = util.parse_attrs(self.session.stat(ppath))
-        except ssh2.exceptions.SFTPProtocolError as e:
-            raise excs.NotFoundError(f"Directory {path} does not exists.") from e
+            self.session.rmdir(ppath)
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
 
-        if attrs.type != 'd':
-            raise excs.NotFoundError(f"Directory {path} does not exists.")
-
-        self.session.rmdir(path)
-
-    @util.reconnect
-    def mkdir(self, path: str, permissions: str = 'rwxrwxr-x'):
+    @utils.reconnect
+    def mkdir(self, path: str, permissions: str = "rwxrwxr-x"):
         """Create directory
 
         :param path: Path of directory to create.
         :param permissions: Unix-like string with permissions of new directory.
+        :raise SFTPIOError: If can't access requested path(s).
         """
         pass
 
-    @util.reconnect
-    def get_stat(self, path: str) -> util.FileAttributes:
-        """Get stat of file or directory"""
-        return util.parse_attrs(self.session.stat(path))
+    @utils.reconnect
+    def get_stat(self, path: str) -> const.FileAttributes:
+        """Get stat of file or directory
 
-    @util.reconnect
+        :param path: Path of file or directory to get stat.
+        :return: :class:`~const.FileAttributes` instance.
+        :raise SFTPIOError: If can't access requested path(s).
+        """
+        ppath = self._preprocess_path(path)
+        try:
+            return utils.parse_attrs(self.session.stat(ppath))
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, error=self.session_last_error)
+
+    @utils.reconnect
     def set_stat(self, path: str):
         """Set stat"""
         pass
 
-    @util.reconnect
+    @utils.reconnect
     def ln(self, path: str, target: str):
         """Create symlink
 
         :param path: Source path.
         :param target: Target path.
+        :raise SFTPIOError: If can't access requested path(s).
         """
-        return self.session.symlink(path, target)
+        ppath = self._preprocess_path(path)
+        ptarget = self._preprocess_path(target)
+        try:
+            self.session.symlink(ppath, ptarget)
+        except ssh2.exceptions.SFTPProtocolError:
+            raise excs.SFTPIOError(path, target, error=self.session_last_error)
 
-    @util.reconnect
-    def unlink(self, path: str):
-        """Delete symlink
-
-        :param path: Path to symlink to delete.
-        """
-        pass
-
-    @util.reconnect
+    @utils.reconnect
     def get(self, path: str, fh: t.IO):
         """Get file
 
@@ -409,7 +363,7 @@ class SFTP:
         """
         pass
 
-    @util.reconnect
+    @utils.reconnect
     def put(self, fh: t.IO, path: str):
         """Put file
 

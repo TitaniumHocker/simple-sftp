@@ -8,13 +8,14 @@ from getpass import getuser
 import ssh2
 from ssh2.session import Session
 
-from . import excs
+from . import exceptions as excs
 
 logger = logging.getLogger(__name__)
 
 
 class AbstractAuthorization(ABC):
     """Abstract authorization handler"""
+
     def auth(self, session: Session):
         """
         Process authorization for SSH session
@@ -42,10 +43,12 @@ class AbstractAuthorization(ABC):
         """
         logging.debug("Trying to validate that SSH session is authorized.")
         if not session.userauth_authenticated():
-            raise excs.AuthorizationError(
+            message = (
                 "Authorization passed without errors, "
                 "but the session remained unauthorized"
             )
+            logger.error(message)
+            raise excs.SFTPAuthorizationError(message)
         logger.debug("SSH session authorization validated.")
 
 
@@ -56,6 +59,7 @@ class AgentAuthorization(AbstractAuthorization):
     :param username: User name. Optional, if not provided
         `getpass.getuser` function will be used instead.
     """
+
     def __init__(self, username: t.Optional[str] = None):
         logger.debug("Creating agent authorization handler.")
         self.username: str = getuser() if username is None else username
@@ -66,13 +70,11 @@ class AgentAuthorization(AbstractAuthorization):
         try:
             session.agent_auth(self.username)
         except ssh2.exceptions.AgentConnectionError as exc:
+            raise excs.AgentAuthorizationError("Failed to connect to agent") from exc
+        except ssh2.exceptions.AgentListIdentitiesError as e:
             raise excs.AgentAuthorizationError(
-                "Failed to connect to agent"
-            ) from exc
-        except ssh2.exceptions.AgentListIdentitiesError as exc:
-            raise excs.AgentAuthorizationError(
-                "Failed to get identities from agent"
-            ) from exc
+                f"Failed to get identities from agent: \n{repr(e)}"
+            )
         except ssh2.exceptions.AgentAuthenticationError as exc:
             raise excs.AgentAuthorizationError(
                 "Failed to get known identity from agent"
@@ -96,11 +98,9 @@ class KeyAuthorization(AbstractAuthorization):
         If not provided `getpass.getuser` function
         will be used instead.
     """
+
     def __init__(
-        self,
-        path: str,
-        passphrase: str = '',
-        username: t.Optional[str] = None
+        self, path: str, passphrase: str = "", username: t.Optional[str] = None
     ):
         logger.debug("Creating key authorization handler.")
         self.username: str = getuser() if username is None else username
@@ -114,9 +114,9 @@ class KeyAuthorization(AbstractAuthorization):
         :param str: Relative path.
         :return: Full path.
         """
-        if path.startswith('~'):
+        if path.startswith("~"):
             return os.path.expanduser(path)
-        if path.startswith('/'):
+        if path.startswith("/"):
             return path
         return os.path.join(os.getcwd(), path)
 
@@ -134,6 +134,7 @@ class PasswordAuthorization(AbstractAuthorization):
     :param login: Login that will be used for authorization.
     :param password: Password that will be used for authorization.
     """
+
     def __init__(self, login: str, password: str):
         logger.debug("Creating password authorization handler.")
         self.login: str = login
