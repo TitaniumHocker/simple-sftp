@@ -67,7 +67,7 @@ HOSTKEYTYPE_MAP: t.Dict[int, int] = {
     LIBSSH2_HOSTKEY_TYPE_ECDSA_521: LIBSSH2_KNOWNHOST_KEY_ECDSA_521,
 }
 
-
+# Sort make sense!
 FILETYPE_MASKS: t.List[int] = sorted(
     [
         LIBSSH2_SFTP_S_IFSOCK,
