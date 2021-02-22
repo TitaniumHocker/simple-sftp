@@ -11,7 +11,7 @@ ssh2-python = "^0.26.0"
 tox = "^3.21.4"
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.800"
+mypy = "^0.812"
 pytest = "^6.2.2"
 jedi = "^0.18.0"
 flake8 = "^3.8.4"
