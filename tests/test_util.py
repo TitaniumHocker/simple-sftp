@@ -56,7 +56,8 @@ def test_parse_attrs(initable_sftp_attributes):
     assert attr.type == permissions[0]
 
     assert const.UNIX_PERMISSIONS_PATTERN.match(attr.permissions)
-    assert const.UNIX_PERMISSIONS_PATTERN.match(attr.permissions[1::])
+    if len(attr.permissions) == 10:
+        assert const.UNIX_PERMISSIONS_PATTERN.match(attr.permissions[1::])
 
 
 def test_find_knownhosts(monkeypatch, random_string):
