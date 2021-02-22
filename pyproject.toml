@@ -101,4 +101,6 @@ basepython = python3
 commands = pytest
 deps =
     pytest
+    pytest-sftpserver
+    pytest-factoryboy
 """
