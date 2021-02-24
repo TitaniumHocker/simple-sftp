@@ -86,17 +86,13 @@ def test_make_sock(listener):
     # TODO: Find out how to test socket timeout
 
 
-def test_make_ssh_session(sftpserver):
-    with sftpserver.serve_content({}):
-        session = utils.make_ssh_session(
-            utils.make_socket(sftpserver.host, sftpserver.port),
-            # Some shit like paramiko does not support keepalive
-            use_keepalive=False,
-        )
-        assert isinstance(session, Session)
-
-        with pytest.raises(excs.HandshakeError):
-            utils.make_ssh_session(utils.make_socket(sftpserver.host, sftpserver.port))
+def test_make_ssh_session(ssh_server):
+    session = utils.make_ssh_session(
+        utils.make_socket(ssh_server.host, ssh_server.port),
+        # Some shit like paramiko does not support keepalive
+        use_keepalive=False,
+    )
+    assert isinstance(session, Session)
 
 
 def test_pick_auth_method():

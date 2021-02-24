@@ -95,7 +95,14 @@ def make_attrs(attrs: const.FileAttributes) -> SFTPAttributes:
     :param attrs: Instance of :class:`~FileAttributes`.
     :return: Instance of :class:`~SFTPAttributes`.
     """
-    pass
+    sftp_attrs = SFTPAttributes()
+    sftp_attrs.atime = int(attrs.atime.timestamp())
+    sftp_attrs.mtime = int(attrs.mtime.timestamp())
+    sftp_attrs.filesize = attrs.size
+    sftp_attrs.uid = attrs.uid
+    sftp_attrs.gid = attrs.gid
+    sftp_attrs.permissions = encode_permissions(attrs.permissions)
+    return attrs
 
 
 def reconnect(func: t.Callable) -> t.Callable:
@@ -233,7 +240,7 @@ def make_ssh_session(
     ssh.set_blocking(True)
     if use_keepalive:
         logger.info("Settingup SSH session keepalive configuration.")
-        ssh.keepalive_config(True, 3)
+        ssh.keepalive_config(True, 120)
 
     logger.debug("Making SSH handshake...")
     for i in range(1, retry_count + 2):

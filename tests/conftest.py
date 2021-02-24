@@ -2,6 +2,7 @@
 from random import choice
 from string import ascii_letters
 
+import mockssh
 import pytest
 from factory import Factory, Faker
 from pytest_factoryboy import register
@@ -27,6 +28,12 @@ from ssh2.sftp_handle import SFTPAttributes
 @pytest.fixture(scope="session")
 def random_string():
     return lambda: "".join(choice(ascii_letters) for _ in range(10))
+
+
+@pytest.fixture(scope="session")
+def ssh_server():
+    with mockssh.Server({}) as server:
+        yield server
 
 
 PERMISSIONS2STRING_MAP = {
