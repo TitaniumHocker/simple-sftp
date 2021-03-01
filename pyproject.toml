@@ -18,7 +18,7 @@ flake8 = "^3.8.4"
 isort = "^5.7.0"
 pytest-cov = "^2.11.1"
 pytest-sftpserver = "^1.3.0"
-coverage = {extras = ["toml"], version = "^5.4"}
+coverage = {extras = ["toml"], version = "^5.5"}
 
 [build-system]
 requires = ["poetry>=0.12"]
